@@ -1,0 +1,118 @@
+# =============================================================================
+# Docker Compose Override - Local Customization
+# =============================================================================
+#
+# Copy this file to docker-compose.override.yml for local customizations.
+# This file is automatically loaded by docker-compose and will NOT be committed.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   # Edit docker-compose.override.yml as needed
+#   docker-compose up -d
+#
+# =============================================================================
+
+version: "3.9"
+
+services:
+  # ---------------------------------------------------------------------------
+  # API Customizations
+  # ---------------------------------------------------------------------------
+  api:
+    # Uncomment to enable debugger attachment
+    # ports:
+    #   - "5678:5678"  # debugpy port
+    # command: >
+    #   python -m debugpy --listen 0.0.0.0:5678 --wait-for-client
+    #   -m uvicorn cbi.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+    # Additional environment variables
+    environment:
+      - LOG_LEVEL=DEBUG
+      # - ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+  # ---------------------------------------------------------------------------
+  # Worker Customizations
+  # ---------------------------------------------------------------------------
+  worker:
+    # Scale workers for testing
+    # deploy:
+    #   replicas: 2
+    environment:
+      - LOG_LEVEL=DEBUG
+
+  # ---------------------------------------------------------------------------
+  # Dashboard Customizations
+  # ---------------------------------------------------------------------------
+  dashboard:
+    # Mount additional directories for development
+    # volumes:
+    #   - ./dashboard:/app:cached
+    #   - /app/node_modules
+    #   - /app/.next
+    environment:
+      - NEXT_PUBLIC_DEBUG=true
+
+  # ---------------------------------------------------------------------------
+  # Database Customizations
+  # ---------------------------------------------------------------------------
+  db:
+    # Expose on a different port if 5432 is already in use
+    # ports:
+    #   - "5433:5432"
+
+    # Use a custom PostgreSQL configuration
+    # command: postgres -c 'max_connections=200' -c 'log_statement=all'
+    pass
+
+  # ---------------------------------------------------------------------------
+  # Redis Customizations
+  # ---------------------------------------------------------------------------
+  redis:
+    # Expose on a different port if 6379 is already in use
+    # ports:
+    #   - "6380:6379"
+    pass
+
+  # ---------------------------------------------------------------------------
+  # ngrok Customizations
+  # ---------------------------------------------------------------------------
+  ngrok:
+    # Use a custom subdomain (requires paid plan)
+    # command: http api:8000 --subdomain=cbi-dev --log stdout
+    pass
+
+  # ---------------------------------------------------------------------------
+  # Additional Development Tools (Optional)
+  # ---------------------------------------------------------------------------
+
+  # # pgAdmin - PostgreSQL GUI
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: cbi-pgadmin
+  #   ports:
+  #     - "5050:80"
+  #   environment:
+  #     - PGADMIN_DEFAULT_EMAIL=admin@cbi.local
+  #     - PGADMIN_DEFAULT_PASSWORD=admin
+  #   networks:
+  #     - cbi-network
+
+  # # RedisInsight - Redis GUI
+  # redisinsight:
+  #   image: redislabs/redisinsight:latest
+  #   container_name: cbi-redisinsight
+  #   ports:
+  #     - "8001:8001"
+  #   networks:
+  #     - cbi-network
+
+  # # MailHog - Email testing
+  # mailhog:
+  #   image: mailhog/mailhog:latest
+  #   container_name: cbi-mailhog
+  #   ports:
+  #     - "1025:1025"  # SMTP
+  #     - "8025:8025"  # Web UI
+  #   networks:
+  #     - cbi-network

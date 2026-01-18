@@ -1,0 +1,186 @@
+version: "3.9"
+
+# =============================================================================
+# CBI - Community Based Intelligence
+# Docker Compose for Local Development
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # API - FastAPI Backend
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: cbi-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cbi:/app/cbi:cached
+      - ./migrations:/app/migrations:cached
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cbi:cbi_password@db:5432/cbi
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - DEBUG=true
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cbi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Worker - Background Message Processor
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: cbi-worker
+    command: python -m cbi.workers.main
+    volumes:
+      - ./cbi:/app/cbi:cached
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cbi:cbi_password@db:5432/cbi
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - DEBUG=true
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - cbi-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Dashboard - Next.js Frontend
+  # ---------------------------------------------------------------------------
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      target: development
+    container_name: cbi-dashboard
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dashboard/src:/app/src:cached
+      - ./dashboard/public:/app/public:cached
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - cbi-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Database - PostgreSQL with PostGIS
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgis/postgis:15-3.3-alpine
+    container_name: cbi-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=cbi
+      - POSTGRES_PASSWORD=cbi_password
+      - POSTGRES_DB=cbi
+    volumes:
+      - cbi-db-data:/var/lib/postgresql/data
+      - ./scripts/init-db:/docker-entrypoint-initdb.d:ro
+    networks:
+      - cbi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cbi -d cbi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redis - Cache and Message Queue
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: cbi-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - cbi-redis-data:/data
+    networks:
+      - cbi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # ngrok - Telegram Webhook Tunnel
+  # ---------------------------------------------------------------------------
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: cbi-ngrok
+    command: http api:8000 --log stdout
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - cbi-network
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  cbi-network:
+    driver: bridge
+    name: cbi-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  cbi-db-data:
+    name: cbi-db-data
+  cbi-redis-data:
+    name: cbi-redis-data
