@@ -14,6 +14,7 @@ CBI is a three-agent AI system that enables community members to report health i
 
 ## Technology Stack
 
+### Backend
 | Component | Technology | Version/Notes |
 |-----------|------------|---------------|
 | **LLM (Reporter)** | Claude 3.5 Haiku | Fast, cost-effective, excellent Arabic |
@@ -22,10 +23,23 @@ CBI is a three-agent AI system that enables community members to report health i
 | **Database** | PostgreSQL + PostGIS | Geospatial queries for outbreak mapping |
 | **Cache/Queue** | Redis + Redis Streams | State, sessions, message queue |
 | **API Framework** | FastAPI | Async-native, OpenAPI docs |
-| **Frontend** | Next.js 14 | Server components, TypeScript |
 | **Messaging (MVP)** | Telegram Bot API | Free, instant setup |
 | **Messaging (Prod)** | WhatsApp Business API | Primary channel in Sudan |
 | **Cloud** | AWS | ECS Fargate, RDS, ElastiCache |
+
+### Frontend (Dashboard)
+| Component | Technology | Version/Notes |
+|-----------|------------|---------------|
+| **Framework** | Next.js 14 | App Router, Server Components |
+| **Language** | TypeScript | Type-safe JavaScript |
+| **Styling** | Tailwind CSS | Utility-first CSS |
+| **Components** | shadcn/ui | Accessible, customizable |
+| **State (Server)** | React Query | Server state management |
+| **State (Client)** | Zustand | Lightweight client state |
+| **Real-time** | Socket.io | WebSocket for live updates |
+| **Charts** | Recharts | Data visualization |
+| **Maps** | React Leaflet | Interactive incident maps |
+| **Icons** | Lucide React | Consistent iconography |
 
 ---
 
@@ -215,6 +229,25 @@ cbi/
 ├── migrations/              # SQL migrations
 ├── tests/                   # Test suites
 ├── dashboard/               # Next.js frontend
+│   ├── src/
+│   │   ├── app/             # App Router pages
+│   │   │   ├── (auth)/      # Auth pages (login)
+│   │   │   ├── (dashboard)/ # Protected dashboard pages
+│   │   │   ├── layout.tsx   # Root layout
+│   │   │   └── providers.tsx
+│   │   ├── components/
+│   │   │   ├── ui/          # shadcn components
+│   │   │   ├── layout/      # Sidebar, Header
+│   │   │   ├── dashboard/   # Stats, alerts
+│   │   │   ├── reports/     # Table, filters
+│   │   │   ├── map/         # Leaflet map
+│   │   │   ├── charts/      # Recharts
+│   │   │   └── notifications/
+│   │   ├── hooks/           # React Query hooks
+│   │   ├── lib/             # API client, utils
+│   │   ├── stores/          # Zustand stores
+│   │   └── types/           # TypeScript types
+│   └── public/sounds/       # Alert sounds
 ├── terraform/               # AWS infrastructure
 ├── docker-compose.yml
 ├── Dockerfile
@@ -225,19 +258,29 @@ cbi/
 
 ## Coding Standards
 
-### Python
+### Python (Backend)
 - Python 3.11+
 - Type hints required on all functions
 - Async/await for I/O operations
 - Pydantic for data validation
 - Use `"""docstrings"""` for public functions
 
+### TypeScript (Frontend)
+- Strict mode enabled
+- Explicit return types on functions
+- Interface over type for object shapes
+- Use React Query for server state
+- Use Zustand for client state
+- Prefer Server Components where possible
+
 ### Naming Conventions
-- Files: `snake_case.py`
-- Classes: `PascalCase`
-- Functions/variables: `snake_case`
+- Python files: `snake_case.py`
+- TypeScript files: `PascalCase.tsx` for components, `camelCase.ts` for utilities
+- Classes/Components: `PascalCase`
+- Functions/variables: `snake_case` (Python), `camelCase` (TypeScript)
 - Constants: `UPPER_SNAKE_CASE`
 - Database columns: `snake_case`
+- API responses: `camelCase` (converted from snake_case)
 
 ### Error Handling
 - Custom exceptions in `exceptions.py`
