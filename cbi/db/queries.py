@@ -108,7 +108,7 @@ async def get_open_reports(
     offset: int = 0,
 ) -> list[Report]:
     """Get open reports, optionally filtered by urgency."""
-    query = select(Report).where(Report.status == ReportStatus.OPEN)
+    query = select(Report).where(Report.status == ReportStatus.open)
 
     if urgency:
         query = query.where(Report.urgency == urgency)
@@ -336,7 +336,7 @@ async def get_report_stats(
     open_result = await session.execute(
         select(func.count(Report.id)).where(
             and_(
-                Report.status == ReportStatus.OPEN,
+                Report.status == ReportStatus.open,
                 Report.created_at >= since,
             )
         )
@@ -347,7 +347,7 @@ async def get_report_stats(
     critical_result = await session.execute(
         select(func.count(Report.id)).where(
             and_(
-                Report.urgency == UrgencyLevel.CRITICAL,
+                Report.urgency == UrgencyLevel.critical,
                 Report.created_at >= since,
             )
         )

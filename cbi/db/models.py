@@ -47,59 +47,59 @@ if TYPE_CHECKING:
 class ReportStatus(str, PyEnum):
     """Report status workflow."""
 
-    OPEN = "open"
-    INVESTIGATING = "investigating"
-    RESOLVED = "resolved"
-    FALSE_ALARM = "false_alarm"
+    open = "open"
+    investigating = "investigating"
+    resolved = "resolved"
+    false_alarm = "false_alarm"
 
 
 class UrgencyLevel(str, PyEnum):
     """Urgency levels for triage."""
 
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
+    critical = "critical"
+    high = "high"
+    medium = "medium"
+    low = "low"
 
 
 class AlertType(str, PyEnum):
     """Alert classification types."""
 
-    SUSPECTED_OUTBREAK = "suspected_outbreak"
-    CLUSTER = "cluster"
-    SINGLE_CASE = "single_case"
-    RUMOR = "rumor"
+    suspected_outbreak = "suspected_outbreak"
+    cluster = "cluster"
+    single_case = "single_case"
+    rumor = "rumor"
 
 
 class DiseaseType(str, PyEnum):
     """Suspected disease types."""
 
-    CHOLERA = "cholera"
-    DENGUE = "dengue"
-    MALARIA = "malaria"
-    MEASLES = "measles"
-    MENINGITIS = "meningitis"
-    UNKNOWN = "unknown"
+    cholera = "cholera"
+    dengue = "dengue"
+    malaria = "malaria"
+    measles = "measles"
+    meningitis = "meningitis"
+    unknown = "unknown"
 
 
 class ReporterRelation(str, PyEnum):
     """Reporter relationship to cases."""
 
-    SELF = "self"
-    FAMILY = "family"
-    NEIGHBOR = "neighbor"
-    HEALTH_WORKER = "health_worker"
-    COMMUNITY_LEADER = "community_leader"
-    OTHER = "other"
+    self_ = "self"
+    family = "family"
+    neighbor = "neighbor"
+    health_worker = "health_worker"
+    community_leader = "community_leader"
+    other = "other"
 
 
 class LinkType(str, PyEnum):
     """Link types for case clustering."""
 
-    GEOGRAPHIC = "geographic"
-    TEMPORAL = "temporal"
-    SYMPTOM = "symptom"
-    MANUAL = "manual"
+    geographic = "geographic"
+    temporal = "temporal"
+    symptom = "symptom"
+    manual = "manual"
 
 
 # =============================================================================
@@ -234,14 +234,14 @@ class Report(Base):
     conversation_id: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[ReportStatus] = mapped_column(
         Enum(ReportStatus, name="report_status", create_type=False),
-        default=ReportStatus.OPEN,
+        default=ReportStatus.open,
     )
 
     # MVS Data
     symptoms: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     suspected_disease: Mapped[DiseaseType] = mapped_column(
         Enum(DiseaseType, name="disease_type", create_type=False),
-        default=DiseaseType.UNKNOWN,
+        default=DiseaseType.unknown,
     )
     reporter_relation: Mapped[ReporterRelation | None] = mapped_column(
         Enum(ReporterRelation, name="reporter_rel", create_type=False),
@@ -259,11 +259,11 @@ class Report(Base):
     # Classification
     urgency: Mapped[UrgencyLevel] = mapped_column(
         Enum(UrgencyLevel, name="urgency_level", create_type=False),
-        default=UrgencyLevel.MEDIUM,
+        default=UrgencyLevel.medium,
     )
     alert_type: Mapped[AlertType] = mapped_column(
         Enum(AlertType, name="alert_type", create_type=False),
-        default=AlertType.SINGLE_CASE,
+        default=AlertType.single_case,
     )
     data_completeness: Mapped[float] = mapped_column(Float, default=0.0)
     confidence_score: Mapped[float | None] = mapped_column(Float, default=None)
