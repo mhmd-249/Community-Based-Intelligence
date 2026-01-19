@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy README for metadata
+COPY README.md ./
+
 # Install pip and build tools
 RUN pip install --no-cache-dir --upgrade pip wheel
 
@@ -80,6 +83,8 @@ CMD ["uvicorn", "cbi.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM runtime AS development
 
 USER root
+
+COPY pyproject.toml README.md ./
 
 # Install dev dependencies
 RUN pip install --no-cache-dir -e ".[dev]"

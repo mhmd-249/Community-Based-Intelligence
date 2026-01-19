@@ -105,8 +105,14 @@ RUN apk add --no-cache libc6-compat
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
+# Change ownership of /app directory to nextjs user
+RUN chown -R nextjs:nodejs /app
+
+# Switch to non-root user before installing dependencies
+USER nextjs
+
 # Copy dependency files
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+COPY --chown=nextjs:nodejs package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
 
 # Install all dependencies (including devDependencies)
 RUN \
@@ -118,9 +124,6 @@ RUN \
 
 # Copy source code
 COPY --chown=nextjs:nodejs . .
-
-# Switch to non-root user
-USER nextjs
 
 # Environment
 ENV NODE_ENV=development
