@@ -58,6 +58,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY --chown=cbi:cbi cbi/ ./cbi/
 COPY --chown=cbi:cbi migrations/ ./migrations/
+COPY --chown=cbi:cbi alembic/ ./alembic/
+COPY --chown=cbi:cbi alembic.ini ./
 
 # Switch to non-root user
 USER cbi

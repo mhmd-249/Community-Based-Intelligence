@@ -19,6 +19,8 @@ services:
     volumes:
       - ./cbi:/app/cbi:cached
       - ./migrations:/app/migrations:cached
+      - ./alembic:/app/alembic:cached
+      - ./alembic.ini:/app/alembic.ini:ro
     environment:
       - DATABASE_URL=postgresql+asyncpg://cbi:cbi_password@db:5432/cbi
       - REDIS_URL=redis://redis:6379/0
@@ -118,6 +120,7 @@ services:
       - POSTGRES_PASS=cbi_password
       - POSTGRES_DB=cbi
       - ALLOW_IP_RANGE=0.0.0.0/0
+      - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
       - cbi-db-data:/var/lib/postgresql/data
       - ./scripts/init-db:/docker-entrypoint-initdb.d:ro

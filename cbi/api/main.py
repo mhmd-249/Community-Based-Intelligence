@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from cbi.config import configure_logging, get_settings, get_logger
+from cbi.db import init_db, close_db, health_check as db_health_check
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -27,8 +28,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         environment=settings.environment,
         version=settings.app_version,
     )
+
+    # Initialize database
+    await init_db(
+        pool_size=5,
+        max_overflow=10,
+        echo=settings.debug,
+    )
+    logger.info("Database connection established")
+
     yield
+
     # Shutdown
+    await close_db()
     logger.info("Shutting down CBI API")
 
 
@@ -52,9 +64,13 @@ app.add_middleware(
 
 
 @app.get("/health")
-async def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str | bool]:
     """Health check endpoint for Docker and load balancers."""
-    return {"status": "healthy"}
+    db_ok = await db_health_check()
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "database": db_ok,
+    }
 
 
 @app.get("/")
