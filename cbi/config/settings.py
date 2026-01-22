@@ -137,3 +137,5 @@ def get_settings() -> Settings:
         Settings instance loaded from environment variables.
     """
     return Settings()
+
+settings = get_settings()

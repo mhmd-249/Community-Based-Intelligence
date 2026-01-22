@@ -2,24 +2,55 @@
 Webhook endpoints for messaging platforms.
 
 Handles incoming messages from Telegram and WhatsApp with proper
-verification, parsing, and error handling.
+verification, parsing, signature validation, and message queuing.
 """
 
 from typing import Any
-from fastapi import APIRouter, HTTPException, Query, Request
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from cbi.config import get_logger, get_settings
+from cbi.services.message_queue import queue_incoming_message
 from cbi.services.messaging import (
+    IncomingMessage,
     MessagingError,
     MessagingParseError,
     get_gateway,
     get_gateway_for_message,
 )
+from cbi.services.webhook_security import (
+    verify_telegram_secret_token,
+    verify_whatsapp_signature,
+)
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 logger = get_logger(__name__)
 settings = get_settings()
+
+
+async def _queue_message_background(message: IncomingMessage) -> None:
+    """
+    Background task to queue a message to Redis Stream.
+
+    Args:
+        message: The incoming message to queue
+    """
+    try:
+        entry_id = await queue_incoming_message(message)
+        logger.debug(
+            "Message queued successfully",
+            entry_id=entry_id,
+            platform=message.platform,
+            chat_id=message.chat_id,
+        )
+    except Exception as e:
+        logger.error(
+            "Failed to queue message",
+            platform=message.platform,
+            chat_id=message.chat_id,
+            error=str(e),
+        )
 
 
 @router.get("/whatsapp")
@@ -80,12 +111,15 @@ async def whatsapp_verification(
 
 
 @router.post("/whatsapp")
-async def whatsapp_webhook(request: Request) -> dict[str, str]:
+async def whatsapp_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, str]:
     """
     Handle incoming WhatsApp webhook events.
 
-    Receives messages from WhatsApp Business API and processes them.
-    Currently logs the payload for debugging; full processing comes in later phases.
+    Receives messages from WhatsApp Business API, verifies the signature,
+    parses the messages, and queues them for async processing.
 
     The webhook payload structure:
     {
@@ -106,37 +140,48 @@ async def whatsapp_webhook(request: Request) -> dict[str, str]:
 
     Args:
         request: The incoming HTTP request
+        background_tasks: FastAPI background tasks for async processing
 
     Returns:
-        Acknowledgment response
+        Acknowledgment response {"status": "ok"}
     """
+    # Get raw body for signature verification
+    raw_body = await request.body()
+
+    # Verify signature if app secret is configured
+    if settings.whatsapp_app_secret:
+        signature = request.headers.get("X-Hub-Signature-256")
+        if not verify_whatsapp_signature(raw_body, signature):
+            logger.warning("WhatsApp webhook signature verification failed")
+            raise HTTPException(status_code=403, detail="Invalid signature")
+
+    # Parse JSON body
     try:
         body: dict[str, Any] = await request.json()
     except Exception as e:
         logger.error("Failed to parse WhatsApp webhook JSON", error=str(e))
         raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
-    # Log the incoming webhook (useful for debugging)
+    # Log the incoming webhook (no PII)
     logger.info(
         "Received WhatsApp webhook",
         object_type=body.get("object"),
         entry_count=len(body.get("entry", [])),
     )
 
-    # Try to parse the webhook payload using the gateway
+    # Parse and queue messages
     try:
         gateway = get_gateway("whatsapp")
         messages = gateway.parse_webhook(body)
 
-        if messages:
-            for msg in messages:
-                logger.info(
-                    "Parsed WhatsApp message",
-                    message_id=msg.message_id,
-                    chat_id=msg.chat_id,
-                    text_preview=msg.text[:50] if msg.text else None,
-                )
-                # TODO: Queue message for agent processing in later phase
+        for msg in messages:
+            logger.info(
+                "Parsed WhatsApp message",
+                message_id=msg.message_id,
+                has_text=msg.text is not None,
+            )
+            # Queue message for async processing
+            background_tasks.add_task(_queue_message_background, msg)
 
     except MessagingParseError as e:
         logger.warning(
@@ -160,19 +205,30 @@ async def whatsapp_webhook(request: Request) -> dict[str, str]:
 
 
 @router.post("/telegram")
-async def telegram_webhook(request: Request) -> dict[str, str]:
+async def telegram_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, bool]:
     """
     Handle incoming Telegram webhook events.
 
-    Receives updates from Telegram Bot API and processes them.
-    Currently logs the payload for debugging; full processing comes in later phases.
+    Receives updates from Telegram Bot API, validates (if secret token configured),
+    parses messages, and queues them for async processing.
 
     Args:
         request: The incoming HTTP request
+        background_tasks: FastAPI background tasks for async processing
 
     Returns:
-        Acknowledgment response
+        Acknowledgment response {"ok": true} (Telegram format)
     """
+    # Verify secret token if configured
+    secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+    if not verify_telegram_secret_token(secret_token):
+        logger.warning("Telegram webhook secret token verification failed")
+        raise HTTPException(status_code=403, detail="Invalid secret token")
+
+    # Parse JSON body
     try:
         body: dict[str, Any] = await request.json()
     except Exception as e:
@@ -180,23 +236,40 @@ async def telegram_webhook(request: Request) -> dict[str, str]:
         raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
     update_id = body.get("update_id")
-    logger.info("Received Telegram webhook", update_id=update_id)
 
-    # Try to parse the webhook payload using the gateway
+    # Check if this is a message update (not edit, callback, etc.)
+    has_message = "message" in body
+    has_edited = "edited_message" in body
+
+    logger.info(
+        "Received Telegram webhook",
+        update_id=update_id,
+        has_message=has_message,
+        has_edited=has_edited,
+    )
+
+    # Only process message updates (skip edited messages, callbacks, etc.)
+    if not has_message:
+        logger.debug(
+            "Skipping non-message Telegram update",
+            update_id=update_id,
+            keys=list(body.keys()),
+        )
+        return {"ok": True}
+
+    # Parse and queue messages
     try:
         gateway = get_gateway("telegram")
         messages = gateway.parse_webhook(body)
 
-        if messages:
-            for msg in messages:
-                logger.info(
-                    "Parsed Telegram message",
-                    message_id=msg.message_id,
-                    chat_id=msg.chat_id,
-                    from_id=msg.from_id,
-                    text_preview=msg.text[:50] if msg.text else None,
-                )
-                # TODO: Queue message for agent processing in later phase
+        for msg in messages:
+            logger.info(
+                "Parsed Telegram message",
+                message_id=msg.message_id,
+                has_text=msg.text is not None,
+            )
+            # Queue message for async processing
+            background_tasks.add_task(_queue_message_background, msg)
 
     except MessagingParseError as e:
         logger.warning(
@@ -214,21 +287,25 @@ async def telegram_webhook(request: Request) -> dict[str, str]:
         # Log but don't fail
         logger.exception("Unexpected error processing Telegram webhook", error=str(e))
 
-    return {"status": "ok"}
+    # Telegram expects {"ok": true} response
+    return {"ok": True}
 
 
 @router.post("/auto")
-async def auto_webhook(request: Request) -> dict[str, str]:
+async def auto_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, str]:
     """
     Auto-detect platform and handle webhook.
 
     Inspects the payload to determine the platform (Telegram or WhatsApp)
-    and routes to the appropriate handler.
-
-    Useful for a single webhook endpoint that handles multiple platforms.
+    and routes to the appropriate handler. Note: signature verification
+    is skipped in auto mode - use platform-specific endpoints for production.
 
     Args:
         request: The incoming HTTP request
+        background_tasks: FastAPI background tasks for async processing
 
     Returns:
         Acknowledgment response
@@ -255,16 +332,15 @@ async def auto_webhook(request: Request) -> dict[str, str]:
     try:
         messages = gateway.parse_webhook(body)
 
-        if messages:
-            for msg in messages:
-                logger.info(
-                    "Parsed message",
-                    platform=platform,
-                    message_id=msg.message_id,
-                    chat_id=msg.chat_id,
-                    text_preview=msg.text[:50] if msg.text else None,
-                )
-                # TODO: Queue message for agent processing in later phase
+        for msg in messages:
+            logger.info(
+                "Parsed message",
+                platform=platform,
+                message_id=msg.message_id,
+                has_text=msg.text is not None,
+            )
+            # Queue message for async processing
+            background_tasks.add_task(_queue_message_background, msg)
 
     except MessagingError as e:
         logger.warning(
