@@ -4,17 +4,17 @@ CBI API - FastAPI Application Entry Point
 Community Based Intelligence - Multi-Agent Health Surveillance System
 """
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from cbi.config import configure_logging, get_settings, get_logger
-from cbi.db import init_db, close_db, health_check as db_health_check
-
 # Import routers
-from cbi.api.routes import auth, reports, notifications, analytics, webhook
+from cbi.api.routes import analytics, auth, notifications, reports, webhook, webhooks
+from cbi.config import configure_logging, get_logger, get_settings
+from cbi.db import close_db, init_db
+from cbi.db import health_check as db_health_check
+from cbi.services.messaging import close_all_gateways
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -63,6 +63,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown
+    await close_all_gateways()
+    logger.info("Messaging gateways closed")
+
     if redis_client:
         await redis_client.close()
         logger.info("Redis connection closed")
@@ -92,9 +95,12 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
-app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(
+    notifications.router, prefix="/api/notifications", tags=["Notifications"]
+)
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
-app.include_router(webhook.router, prefix="/webhook", tags=["Webhooks"])
+app.include_router(webhook.router, prefix="/webhook", tags=["Webhooks (legacy)"])
+app.include_router(webhooks.router, tags=["Webhooks"])
 
 
 @app.get("/health")
