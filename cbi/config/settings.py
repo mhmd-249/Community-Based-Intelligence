@@ -64,6 +64,24 @@ class Settings(BaseSettings):
         description="Secret for validating Telegram webhook requests",
     )
 
+    # WhatsApp (optional for MVP, required for production)
+    whatsapp_phone_number_id: str | None = Field(
+        default=None,
+        description="WhatsApp Business phone number ID",
+    )
+    whatsapp_access_token: SecretStr | None = Field(
+        default=None,
+        description="Meta Graph API access token for WhatsApp",
+    )
+    whatsapp_verify_token: str | None = Field(
+        default=None,
+        description="Token for verifying WhatsApp webhook setup",
+    )
+    whatsapp_app_secret: SecretStr | None = Field(
+        default=None,
+        description="Meta App secret for webhook signature validation",
+    )
+
     # Security
     jwt_secret: SecretStr = Field(
         ...,
