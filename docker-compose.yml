@@ -21,6 +21,7 @@ services:
       - ./migrations:/app/migrations:cached
       - ./alembic:/app/alembic:cached
       - ./alembic.ini:/app/alembic.ini:ro
+      - ./scripts:/app/scripts:cached
     environment:
       - DATABASE_URL=postgresql+asyncpg://cbi:cbi_password@db:5432/cbi
       - REDIS_URL=redis://redis:6379/0
