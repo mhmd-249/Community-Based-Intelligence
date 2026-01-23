@@ -279,6 +279,43 @@ python scripts/test_telegram.py --chat-id 12345 --message "Test message"
 
 ---
 
+
+from cbi.agents.state import (
+    create_initial_state, add_message_to_state, 
+    update_extracted_data, transition_mode, set_handoff,
+    MessageRole, ExtractedData, ConversationMode, HandoffTarget
+)
+from datetime import datetime
+
+# Create state and add messages
+state = create_initial_state("conv_456", "hash456", "telegram")
+print(f"Initial turn count: {state['turn_count']}")
+
+# Add user message (pass parameters directly)
+state = add_message_to_state(state, MessageRole.user, "Hello", "msg_1")
+print(f"After user message: {state['turn_count']} turns, {len(state['messages'])} messages")
+
+# Add assistant message
+state = add_message_to_state(state, MessageRole.assistant, "Hi, how can I help?", "msg_2")
+print(f"After assistant message: {state['turn_count']} turns, {len(state['messages'])} messages")
+
+# Update extracted data
+new_data = ExtractedData(symptoms=["fever"], location_text="Darfur")
+state = update_extracted_data(state, new_data)
+print(f"Extracted symptoms: {state['extracted_data'].symptoms}")
+print(f"Data completeness: {state['data_completeness']}")
+
+# Transition mode
+state = transition_mode(state, ConversationMode.investigating)
+print(f"Mode after transition: {state['current_mode']}")  # current_mode
+
+# Set handoff
+state = set_handoff(state, HandoffTarget.surveillance)
+print(f"Handoff target: {state['handoff_to']}")  # handoff_to
+
+
+
+
 ## Phase 3: Reporter Agent (Weeks 3-4)
 
 ### 3.1 LangGraph State Definition
