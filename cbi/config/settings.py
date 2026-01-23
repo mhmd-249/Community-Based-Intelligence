@@ -59,6 +59,10 @@ class Settings(BaseSettings):
         ...,
         description="Telegram Bot API token",
     )
+    telegram_webhook_url: str | None = Field(
+        default=None,
+        description="Public URL for Telegram webhook endpoint",
+    )
     telegram_webhook_secret: SecretStr | None = Field(
         default=None,
         description="Secret for validating Telegram webhook requests",
