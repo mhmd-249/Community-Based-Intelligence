@@ -35,7 +35,7 @@ async def run_all_tests():
     print(f"Is new conversation: {is_new}")
     print(f"Conversation ID: {state['conversation_id']}")
     print(f"Platform: {state['platform']}")
-    print(f"Mode: {state['mode']}")
+    print(f"Mode: {state['current_mode']}")
     print(f"Turn count: {state['turn_count']}")
     conv_id = state['conversation_id']
     
@@ -56,19 +56,14 @@ async def run_all_tests():
     state, _ = await service.get_or_create_conversation("telegram", "+249111222333")
     original_turns = state['turn_count']
     
-    msg = Message(
-        role=MessageRole.USER,
-        content="People are sick in my village",
-        timestamp=datetime.now()
-    )
-    state = add_message_to_state(state, msg)
+    state = add_message_to_state(state, MessageRole.user, "People are sick in my village")
     
     data = ExtractedData(
         symptoms=["fever", "vomiting"],
         location_text="Kassala"
     )
-    state = update_extracted_data(state, data)
-    state = transition_mode(state, ConversationMode.INVESTIGATING)
+    state = update_extracted_data(state, symptoms=["fever", "vomiting"], location_text="Kassala")
+    state = transition_mode(state, ConversationMode.investigating)
     
     await service.save_state(state)
     print(f"State saved successfully")
@@ -76,9 +71,9 @@ async def run_all_tests():
     reloaded = await service.get_state(state['conversation_id'])
     print(f"Turn count: {original_turns} -> {reloaded['turn_count']}")
     print(f"Messages: {len(reloaded['messages'])}")
-    print(f"Mode: {reloaded['mode']}")
-    print(f"Symptoms: {reloaded['extracted_data'].symptoms}")
-    print(f"Location: {reloaded['extracted_data'].location_text}")
+    print(f"Mode: {reloaded['current_mode']}")
+    print(f"Symptoms: {reloaded['extracted_data']['symptoms']}")
+    print(f"Location: {reloaded['extracted_data']['location_text']}")
     
     # Test 6: Session Info
     print("\n=== Test 6: Session Info ===")

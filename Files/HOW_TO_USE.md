@@ -137,6 +137,7 @@ Claude Code automatically reads `CLAUDE.md` and understands your project.
 
 ## Tips for Best Results
 
+
 ### 1. Work in Phases
 Don't try to build everything at once. Follow the phases in order:
 ```
