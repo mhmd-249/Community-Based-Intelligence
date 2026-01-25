@@ -18,6 +18,11 @@ from cbi.agents.prompts import (
     validate_reporter_response,
     validate_surveillance_response,
 )
+from cbi.agents.reporter import (
+    detect_language,
+    process_message,
+    reporter_node,
+)
 from cbi.agents.state import (
     Classification,
     ConversationMode,
@@ -72,4 +77,8 @@ __all__ = [
     # Validators
     "validate_reporter_response",
     "validate_surveillance_response",
+    # Reporter agent
+    "reporter_node",
+    "process_message",
+    "detect_language",
 ]

@@ -22,13 +22,12 @@ class LLMConfig:
 
 
 # Model identifiers
-HAIKU_MODEL = "claude-3-5-haiku-20241022"
-SONNET_MODEL = "claude-3-5-sonnet-20241022"
+SONNET_MODEL = "claude-sonnet-4-5-20250929"
 
 
 # Agent-specific configurations
 REPORTER_CONFIG = LLMConfig(
-    model=HAIKU_MODEL,
+    model=SONNET_MODEL,
     max_tokens=500,
     temperature=0.3,  # Low for consistency
     timeout=30.0,

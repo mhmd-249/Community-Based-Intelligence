@@ -17,8 +17,8 @@ CBI is a three-agent AI system that enables community members to report health i
 ### Backend
 | Component | Technology | Version/Notes |
 |-----------|------------|---------------|
-| **LLM (Reporter)** | Claude 3.5 Haiku | Fast, cost-effective, excellent Arabic |
-| **LLM (Surveillance/Analyst)** | Claude 3.5 Sonnet | Superior reasoning for classification |
+| **LLM (Reporter)** | Claude 4.5 sonnet | Fast, cost-effective, excellent Arabic |
+| **LLM (Surveillance/Analyst)** | Claude 4.5 Sonnet | Superior reasoning for classification |
 | **Agent Orchestration** | LangGraph | Explicit state machines, production-ready |
 | **Database** | PostgreSQL + PostGIS | Geospatial queries for outbreak mapping |
 | **Cache/Queue** | Redis + Redis Streams | State, sessions, message queue |
@@ -57,7 +57,7 @@ Health Officer ← Dashboard ← Notifications ← Surveillance Agent ← Report
 
 ### Three Agents
 
-**1. Reporter Agent (Claude Haiku)**
+**1. Reporter Agent (Claude sonnet)**
 - Handles all incoming conversations
 - Detects health signals through natural language (NOT keyword matching)
 - Collects MVS (Minimum Viable Signal): What, Where, When, Who
@@ -300,10 +300,10 @@ cbi/
 
 ## LLM Configuration
 
-### Reporter Agent (Haiku)
+### Reporter Agent (Sonnet)
 ```python
 {
-    "model": "claude-3-5-haiku-20241022",
+    "model": "claude-sonnet-4-5-20250929",
     "max_tokens": 500,
     "temperature": 0.3,  # Low for consistency
     "timeout": 30.0
@@ -313,7 +313,7 @@ cbi/
 ### Surveillance/Analyst Agent (Sonnet)
 ```python
 {
-    "model": "claude-3-5-sonnet-20241022",
+    "model": "claude-sonnet-4-5-20250929",
     "max_tokens": 2000,  # 4000 for Analyst
     "temperature": 0.1,  # Very low for classification
     "timeout": 60.0      # 120 for Analyst
