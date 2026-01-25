@@ -449,61 +449,6 @@ Implement the Reporter Agent in agents/reporter.py:
 Handle API errors gracefully - set error state and generate apologetic response.
 ```
 
-async def test_arabic():
-   state = create_initial_state("test_conv_3", "hash789", "telegram")
-    
-   msg = Message(
-      role=MessageRole.USER,
-      content="أطفال جيراني مرضى بالإسهال والقيء منذ أمس",
-      timestamp=datetime.now(),
-      message_id="msg_1"
-   )
-   state = add_message_to_state(
-      state,
-      role=MessageRole.user,
-      content="أطفال جيراني مرضى بالإسهال والقيء منذ أمس",
-      message_id="msg_1"
-   )
-    
-   result = await reporter_node(state)
-    
-   print(f"Language: {result['language']}")  # Should be 'ar'
-   print(f"Mode: {result['mode']}")
-   print(f"Response (Arabic?): {result['pending_response'][:150]}...")
-   return result
-
-result = asyncio.run(test_arabic())
-
-
-
-async def test_health_signal():
-   state = create_initial_state("test_conv_2", "hash456", "telegram")
-    
-   msg = Message(
-      role=MessageRole.user,
-      content="My neighbor's children have been vomiting and have diarrhea since yesterday. Three of them are sick.",
-      timestamp=datetime.now(),
-      message_id="msg_1"
-   )
-   state = add_message_to_state(
-      state,
-      role=MessageRole.user,
-      content="My neighbor's children have been vomiting and have diarrhea since yesterday. Three of them are sick.",
-      message_id="msg_1"
-   )
-    
-   result = await reporter_node(state)
-    
-   print(f"Mode: {result['current_mode']}")  # Should be INVESTIGATING
-   print(f"Response: {result['pending_response'][:150]}...")
-   print(f"Symptoms extracted: {result['extracted_data']['symptoms']}")
-   print(f"Cases count: {result['extracted_data']['cases_count']}")
-   return result
-
-result = asyncio.run(test_health_signal())
-
-
-
 ### 3.5 LangGraph Workflow
 
 **Copy this prompt:**

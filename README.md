@@ -26,9 +26,9 @@ Health Officer ← Dashboard ← Notifications ← Surveillance Agent ← Report
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| **Reporter** | Claude 3.5 Haiku | Handles conversations, detects health signals, collects MVS data |
-| **Surveillance** | Claude 3.5 Sonnet | Classifies reports, links cases, monitors thresholds |
-| **Analyst** | Claude 3.5 Sonnet | Natural language queries, visualizations, situation summaries |
+| **Reporter** | Claude 4.5 Sonnet | Handles conversations, detects health signals, collects MVS data |
+| **Surveillance** | Claude 4.5 Sonnet | Classifies reports, links cases, monitors thresholds |
+| **Analyst** | Claude 4.5 Sonnet | Natural language queries, visualizations, situation summaries |
 
 ## Tech Stack
 
@@ -60,7 +60,7 @@ cp .env.example .env
 ```bash
 # Required
 ANTHROPIC_API_KEY=sk-ant-xxxxx
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 16)
 PHONE_HASH_SALT=$(openssl rand -hex 16)
