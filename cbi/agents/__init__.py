@@ -7,6 +7,18 @@ Contains the LangGraph-based conversation agents:
 - Analyst Agent: Natural language queries, visualizations
 """
 
+from cbi.agents.graph import (
+    analyst_node,
+    create_cbi_graph,
+    get_graph,
+    process_conversation_turn,
+    reset_graph,
+    route_after_reporter,
+    route_after_surveillance,
+    send_notification_node,
+    send_response_node,
+    surveillance_node,
+)
 from cbi.agents.prompts import (
     ANALYST_SYSTEM_PROMPT,
     ARABIC_PHRASES,
@@ -81,4 +93,17 @@ __all__ = [
     "reporter_node",
     "process_message",
     "detect_language",
+    # Graph
+    "create_cbi_graph",
+    "get_graph",
+    "reset_graph",
+    "process_conversation_turn",
+    # Agent nodes
+    "surveillance_node",
+    "analyst_node",
+    "send_response_node",
+    "send_notification_node",
+    # Routing functions
+    "route_after_reporter",
+    "route_after_surveillance",
 ]
