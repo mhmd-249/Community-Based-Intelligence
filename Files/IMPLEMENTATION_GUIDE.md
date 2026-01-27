@@ -550,26 +550,6 @@ Create the background worker in workers/main.py:
 Also create workers/health.py with a simple HTTP health endpoint for container orchestration.
 ```
 
-
-from cbi.workers.main import WorkerMetrics
-
-metrics = WorkerMetrics()
-print(f"Initial metrics: {metrics.to_dict()}")
-
-# Record some successes
-metrics.record_success(0.5)  # 500ms
-metrics.record_success(0.3)  # 300ms
-metrics.record_success(0.4)  # 400ms
-print(f"After 3 successes: {metrics.to_dict()}")
-
-# Record a failure
-metrics.record_failure()
-print(f"After 1 failure: {metrics.to_dict()}")
-
-print(f"Average processing time: {metrics.average_processing_time:.3f}s")
-print(f"Success rate: {metrics.to_dict()['success_rate']}%")
-
-
 ---
 
 ## Phase 4: Surveillance Agent (Weeks 5-6)

@@ -278,6 +278,10 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
     messages = state.get("messages", [])
     platform = state.get("platform", "telegram")
 
+    # Convert Pydantic model to dict if needed for JSON serialization
+    if hasattr(extracted_data, "model_dump"):
+        extracted_data = extracted_data.model_dump()
+
     logger.info(
         "Surveillance agent processing report",
         conversation_id=conversation_id,
