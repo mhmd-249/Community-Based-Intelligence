@@ -7,6 +7,7 @@ to determine if the worker is healthy and ready to process messages.
 
 import asyncio
 import time
+from collections.abc import Callable
 from typing import Any
 
 from aiohttp import web
@@ -32,7 +33,7 @@ class HealthServer:
     def __init__(
         self,
         port: int = DEFAULT_PORT,
-        worker_metrics_fn: callable | None = None,
+        worker_metrics_fn: Callable[[], dict] | None = None,
     ) -> None:
         """
         Initialize the health server.
@@ -155,7 +156,7 @@ class HealthServer:
 
 async def run_health_server(
     port: int = DEFAULT_PORT,
-    worker_metrics_fn: callable | None = None,
+    worker_metrics_fn: Callable[[], dict] | None = None,
 ) -> HealthServer:
     """
     Create and start a health server.
