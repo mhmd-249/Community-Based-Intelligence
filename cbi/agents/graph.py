@@ -17,6 +17,7 @@ from cbi.agents.state import (
     ConversationState,
     HandoffTarget,
 )
+from cbi.agents.surveillance import surveillance_node
 from cbi.config import get_logger
 from cbi.services.messaging.base import OutgoingMessage
 from cbi.services.messaging.factory import get_gateway
@@ -27,42 +28,6 @@ logger = get_logger(__name__)
 # =============================================================================
 # Placeholder Agent Nodes (to be implemented in future phases)
 # =============================================================================
-
-
-async def surveillance_node(state: ConversationState) -> ConversationState:
-    """
-    Surveillance Agent node - classifies reports and detects patterns.
-
-    TODO: Implement in Phase 4
-    - Classify report by disease type
-    - Assess urgency level
-    - Link related cases
-    - Check MoH thresholds
-    """
-    conversation_id = state.get("conversation_id", "unknown")
-
-    logger.info(
-        "Surveillance agent processing report",
-        conversation_id=conversation_id,
-    )
-
-    # For now, set a default classification
-    classification = state.get("classification", {})
-    classification["urgency"] = "medium"
-    classification["alert_type"] = "single_case"
-    classification["suspected_disease"] = "unknown"
-
-    new_state = dict(state)
-    new_state["classification"] = classification
-    new_state["updated_at"] = datetime.utcnow().isoformat()
-
-    logger.info(
-        "Surveillance agent completed (placeholder)",
-        conversation_id=conversation_id,
-        urgency=classification["urgency"],
-    )
-
-    return ConversationState(**new_state)
 
 
 async def analyst_node(state: ConversationState) -> ConversationState:

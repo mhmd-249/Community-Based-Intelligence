@@ -17,6 +17,11 @@ from cbi.agents.graph import (
     route_after_surveillance,
     send_notification_node,
     send_response_node,
+)
+from cbi.agents.surveillance import (
+    THRESHOLDS,
+    calculate_urgency,
+    check_thresholds,
     surveillance_node,
 )
 from cbi.agents.prompts import (
@@ -101,6 +106,10 @@ __all__ = [
     # Agent nodes
     "surveillance_node",
     "analyst_node",
+    # Surveillance utilities
+    "THRESHOLDS",
+    "check_thresholds",
+    "calculate_urgency",
     "send_response_node",
     "send_notification_node",
     # Routing functions
