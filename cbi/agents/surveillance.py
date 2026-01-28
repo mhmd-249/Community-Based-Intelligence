@@ -26,7 +26,6 @@ from cbi.db.models import (
     AlertType,
     DiseaseType,
     LinkType,
-    Report,
     UrgencyLevel,
 )
 from cbi.db.session import get_session
@@ -202,7 +201,7 @@ def check_thresholds(
 def _determine_link_type(
     current_symptoms: list[str],
     current_location: str | None,
-    related_report: Report,
+    related_case: dict,
 ) -> LinkType:
     """
     Determine the strongest link type between the current report and a related one.
@@ -210,22 +209,22 @@ def _determine_link_type(
     Args:
         current_symptoms: Symptoms from the current report
         current_location: Location text from the current report
-        related_report: The related Report object
+        related_case: Dict from find_related_cases with location_text, symptoms, etc.
 
     Returns:
         LinkType enum value
     """
+    related_location = related_case.get("location_text", "")
+
     # Check geographic match
-    if current_location and related_report.location_normalized:
-        if current_location.lower() in related_report.location_normalized.lower():
-            return LinkType.geographic
-    if current_location and related_report.location_text:
-        if current_location.lower() in related_report.location_text.lower():
+    if current_location and related_location:
+        if current_location.lower() in related_location.lower():
             return LinkType.geographic
 
     # Check symptom overlap
-    if current_symptoms and related_report.symptoms:
-        overlap = set(current_symptoms) & set(related_report.symptoms)
+    related_symptoms = related_case.get("symptoms", [])
+    if current_symptoms and related_symptoms:
+        overlap = set(current_symptoms) & set(related_symptoms)
         if overlap:
             return LinkType.symptom
 
@@ -361,7 +360,7 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
         # Step 3: Database operations (non-fatal on failure)
         # -----------------------------------------------------------------
         report_id: UUID | None = None
-        related_cases: list[Report] = []
+        related_cases: list[dict] = []
         total_area_cases = 0
         threshold_result: dict[str, Any] = {
             "exceeded": False,
@@ -373,13 +372,11 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
         deaths = extracted_data.get("deaths_count", 0) or 0
         location_text = extracted_data.get("location_text")
         location_coords = extracted_data.get("location_coords")
-        lat = location_coords[0] if location_coords else None
-        lon = location_coords[1] if location_coords else None
         symptoms = extracted_data.get("symptoms", [])
 
         try:
             from cbi.db.queries import (
-                create_report,
+                create_report_from_state,
                 find_related_cases,
                 get_case_count_for_area,
                 link_reports,
@@ -394,15 +391,16 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
 
                 related_cases = await find_related_cases(
                     session,
+                    location=location_text,
+                    location_coords=(
+                        tuple(location_coords) if location_coords else None
+                    ),
+                    symptoms=symptoms,
                     suspected_disease=(
                         disease_enum
                         if disease_enum != DiseaseType.unknown
                         else None
                     ),
-                    location_text=location_text,
-                    location_lat=lat,
-                    location_lon=lon,
-                    symptoms=symptoms,
                 )
 
                 logger.debug(
@@ -416,8 +414,12 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
                     session,
                     disease=disease_enum,
                     location_text=location_text,
-                    location_lat=lat,
-                    location_lon=lon,
+                    location_lat=(
+                        location_coords[0] if location_coords else None
+                    ),
+                    location_lon=(
+                        location_coords[1] if location_coords else None
+                    ),
                     days=THRESHOLDS.get(
                         disease_str, THRESHOLDS["unknown"]
                     )["window_days"],
@@ -446,53 +448,19 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
                 parsed["urgency"] = final_urgency
 
                 # 3e. Create the report in the database
-                location_wkt = None
-                if lat is not None and lon is not None:
-                    location_wkt = f"SRID=4326;POINT({lon} {lat})"
+                # Build a state snapshot with classification for create_report_from_state
+                report_state = dict(state)
+                report_state["classification"] = {
+                    **report_state.get("classification", {}),
+                    "suspected_disease": disease_str,
+                    "confidence": parsed.get("confidence", 0.0),
+                    "urgency": final_urgency,
+                    "alert_type": parsed.get("alert_type", "single_case"),
+                }
 
-                reporter_relation = None
-                relation_str = extracted_data.get("reporter_relationship")
-                if relation_str:
-                    try:
-                        from cbi.db.models import ReporterRelation
-
-                        reporter_relation = ReporterRelation(relation_str)
-                    except ValueError:
-                        pass
-
-                report = await create_report(
-                    session,
-                    conversation_id=conversation_id,
-                    symptoms=symptoms or [],
-                    suspected_disease=disease_enum,
-                    reporter_relation=reporter_relation,
-                    location_text=location_text,
-                    location_normalized=extracted_data.get(
-                        "location_normalized"
-                    ),
-                    location_point_wkt=location_wkt,
-                    onset_text=extracted_data.get("onset_text"),
-                    onset_date=_parse_onset_date(
-                        extracted_data.get("onset_date")
-                    ),
-                    cases_count=extracted_data.get("cases_count") or 1,
-                    deaths_count=deaths,
-                    affected_groups=extracted_data.get(
-                        "affected_description"
-                    ),
-                    urgency=UrgencyLevel(final_urgency),
-                    alert_type=AlertType(
-                        parsed.get("alert_type", "single_case")
-                    ),
-                    data_completeness=state.get("classification", {}).get(
-                        "data_completeness", 0.0
-                    ),
-                    confidence_score=parsed.get("confidence"),
-                    raw_conversation=messages,
-                    extracted_entities=extracted_data,
-                    source=platform,
+                report_id = await create_report_from_state(
+                    session, report_state
                 )
-                report_id = report.id
 
                 # 3f. Link related cases
                 for related in related_cases:
@@ -501,10 +469,10 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
                     )
                     await link_reports(
                         session,
-                        report_id_1=report_id,
-                        report_id_2=related.id,
-                        link_type=link_type,
-                        confidence=0.7,
+                        report_id,
+                        related["id"],
+                        link_type,
+                        related.get("symptom_overlap_score", 0.7),
                         metadata={
                             "auto_linked": True,
                             "agent": "surveillance",
