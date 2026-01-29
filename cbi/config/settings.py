@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     )
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 24
+    jwt_refresh_expiry_days: int = 7
 
     encryption_key: SecretStr = Field(
         ...,
@@ -107,6 +108,8 @@ class Settings(BaseSettings):
     # Rate Limiting
     rate_limit_requests: int = 100
     rate_limit_window_seconds: int = 60
+    login_rate_limit: int = 5
+    login_rate_limit_window: int = 60
 
     # LLM Configuration
     llm_timeout_seconds: float = 30.0

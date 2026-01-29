@@ -13,13 +13,14 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cbi.config import get_settings
 from cbi.db import get_session, Officer
 from cbi.db.queries import get_officer_by_id
+from cbi.services.auth import verify_token
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -72,6 +73,8 @@ async def get_current_officer(
     """
     Dependency that extracts and validates the current officer from JWT token.
 
+    Only accepts access tokens (rejects refresh tokens).
+
     Args:
         credentials: Bearer token from Authorization header.
         db: Database session.
@@ -92,22 +95,33 @@ async def get_current_officer(
     token = credentials.credentials
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret.get_secret_value(),
-            algorithms=[settings.jwt_algorithm],
+        payload = verify_token(token)
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-        officer_id: str | None = payload.get("sub")
-        if officer_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Reject refresh tokens used as access tokens
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    officer_id: str | None = payload.get("sub")
+    if officer_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

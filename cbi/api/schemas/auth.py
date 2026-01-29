@@ -3,7 +3,6 @@ Pydantic schemas for Authentication API.
 """
 
 from datetime import datetime
-from uuid import UUID
 
 from pydantic import EmailStr, Field
 
@@ -21,6 +20,7 @@ class TokenResponse(CamelCaseModel):
     """JWT token response."""
 
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
 
@@ -42,6 +42,16 @@ class OfficerResponse(IDMixin):
     is_active: bool
     last_login_at: datetime | None
     created_at: datetime
+
+
+class LoginResponse(CamelCaseModel):
+    """Login response with tokens and officer info."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
+    officer: OfficerResponse
 
 
 class OfficerUpdateRequest(CamelCaseModel):

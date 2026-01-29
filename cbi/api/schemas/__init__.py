@@ -2,6 +2,7 @@
 
 from cbi.api.schemas.auth import (
     LoginRequest,
+    LoginResponse,
     OfficerResponse,
     OfficerUpdateRequest,
     PasswordChangeRequest,
@@ -46,6 +47,7 @@ __all__ = [
     "LocationPoint",
     # Auth
     "LoginRequest",
+    "LoginResponse",
     "TokenResponse",
     "RefreshRequest",
     "OfficerResponse",
