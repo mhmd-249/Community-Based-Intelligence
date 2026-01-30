@@ -8,16 +8,13 @@ and refresh token blacklisting via Redis.
 from datetime import datetime, timedelta
 from uuid import UUID
 
+import bcrypt
 from jose import ExpiredSignatureError, JWTError, jwt
-from passlib.context import CryptContext
 
 from cbi.config import get_logger, get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()
-
-# Bcrypt password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Redis key prefix for blacklisted refresh tokens
 BLACKLIST_PREFIX = "token:blacklist:"
@@ -25,12 +22,16 @@ BLACKLIST_PREFIX = "token:blacklist:"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
 
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 def create_access_token(officer_id: str | UUID, role: str = "officer") -> str:
