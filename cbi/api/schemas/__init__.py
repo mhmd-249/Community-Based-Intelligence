@@ -26,8 +26,12 @@ from cbi.api.schemas.notifications import (
     UnreadCountResponse,
 )
 from cbi.api.schemas.reports import (
+    InvestigationNote,
+    LinkedReportItem,
+    NotificationSummary,
     OfficerSummary,
     ReportCreate,
+    ReportDetailResponse,
     ReporterSummary,
     ReportListItem,
     ReportListResponse,
@@ -35,6 +39,7 @@ from cbi.api.schemas.reports import (
     ReportResponse,
     ReportStatsResponse,
     ReportUpdate,
+    TimelineEvent,
 )
 
 __all__ = [
@@ -58,11 +63,16 @@ __all__ = [
     "ReportUpdate",
     "ReportNoteCreate",
     "ReportResponse",
+    "ReportDetailResponse",
     "ReportListItem",
     "ReportListResponse",
     "ReportStatsResponse",
     "ReporterSummary",
     "OfficerSummary",
+    "InvestigationNote",
+    "NotificationSummary",
+    "LinkedReportItem",
+    "TimelineEvent",
     # Notifications
     "NotificationResponse",
     "NotificationListItem",

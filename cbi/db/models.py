@@ -272,6 +272,10 @@ class Report(Base):
     raw_conversation: Mapped[dict] = mapped_column(JSONB, default=list)
     extracted_entities: Mapped[dict] = mapped_column(JSONB, default=dict)
 
+    # Officer annotations
+    investigation_notes: Mapped[list] = mapped_column(JSONB, default=list)
+    outcome: Mapped[str | None] = mapped_column(Text, default=None)
+
     # Metadata
     source: Mapped[str] = mapped_column(String(20), default="telegram")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

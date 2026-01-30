@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cbi.db.models import (
     AlertType,
+    AuditLog,
     DiseaseType,
     LinkType,
     Notification,
@@ -864,3 +865,223 @@ async def create_report_from_state(
     )
 
     return report.id
+
+
+# =============================================================================
+# Dashboard Report Queries
+# =============================================================================
+
+
+async def list_reports_paginated(
+    session: AsyncSession,
+    *,
+    status: ReportStatus | None = None,
+    urgency: UrgencyLevel | None = None,
+    disease: DiseaseType | None = None,
+    region: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Report], int]:
+    """
+    List reports with filters and pagination.
+
+    Returns a tuple of (reports, total_count) for building paginated responses.
+
+    Args:
+        session: Async database session.
+        status: Filter by report status.
+        urgency: Filter by urgency level.
+        disease: Filter by suspected disease.
+        region: Filter by location region (matches location_normalized).
+        from_date: Include reports created on or after this date.
+        to_date: Include reports created on or before this date.
+        page: Page number (1-indexed).
+        page_size: Number of results per page.
+
+    Returns:
+        Tuple of (list of Report objects, total matching count).
+    """
+    conditions: list = []
+
+    if status is not None:
+        conditions.append(Report.status == status)
+    if urgency is not None:
+        conditions.append(Report.urgency == urgency)
+    if disease is not None:
+        conditions.append(Report.suspected_disease == disease)
+    if region is not None:
+        conditions.append(Report.location_normalized.ilike(f"%{region}%"))
+    if from_date is not None:
+        conditions.append(Report.created_at >= datetime.combine(from_date, datetime.min.time()))
+    if to_date is not None:
+        conditions.append(Report.created_at <= datetime.combine(to_date, datetime.max.time()))
+
+    where_clause = and_(*conditions) if conditions else True
+
+    # Count total
+    count_result = await session.execute(
+        select(func.count(Report.id)).where(where_clause)
+    )
+    total = count_result.scalar_one()
+
+    # Fetch page
+    offset = (page - 1) * page_size
+    result = await session.execute(
+        select(Report)
+        .where(where_clause)
+        .order_by(desc(Report.created_at))
+        .limit(page_size)
+        .offset(offset)
+    )
+    reports = list(result.scalars().all())
+
+    return reports, total
+
+
+async def get_detailed_report_stats(
+    session: AsyncSession,
+    *,
+    days: int = 7,
+) -> dict:
+    """
+    Get report statistics with breakdowns by disease and urgency.
+
+    Args:
+        session: Async database session.
+        days: Time window in days.
+
+    Returns:
+        Dict with total, open, critical, resolved, by_disease, by_urgency.
+    """
+    since = datetime.utcnow() - timedelta(days=days)
+
+    # Base stats
+    total_result = await session.execute(
+        select(func.count(Report.id)).where(Report.created_at >= since)
+    )
+    total = total_result.scalar_one()
+
+    open_result = await session.execute(
+        select(func.count(Report.id)).where(
+            and_(
+                Report.status.in_([ReportStatus.open, ReportStatus.investigating]),
+                Report.created_at >= since,
+            )
+        )
+    )
+    open_count = open_result.scalar_one()
+
+    critical_result = await session.execute(
+        select(func.count(Report.id)).where(
+            and_(
+                Report.urgency == UrgencyLevel.critical,
+                Report.created_at >= since,
+            )
+        )
+    )
+    critical = critical_result.scalar_one()
+
+    # By disease
+    disease_result = await session.execute(
+        select(Report.suspected_disease, func.count(Report.id))
+        .where(Report.created_at >= since)
+        .group_by(Report.suspected_disease)
+    )
+    by_disease = {
+        row[0].value if hasattr(row[0], "value") else str(row[0]): row[1]
+        for row in disease_result.all()
+    }
+
+    # By urgency
+    urgency_result = await session.execute(
+        select(Report.urgency, func.count(Report.id))
+        .where(Report.created_at >= since)
+        .group_by(Report.urgency)
+    )
+    by_urgency = {
+        row[0].value if hasattr(row[0], "value") else str(row[0]): row[1]
+        for row in urgency_result.all()
+    }
+
+    return {
+        "total": total,
+        "open": open_count,
+        "critical": critical,
+        "resolved": total - open_count,
+        "by_disease": by_disease,
+        "by_urgency": by_urgency,
+    }
+
+
+async def create_audit_log(
+    session: AsyncSession,
+    *,
+    entity_type: str,
+    entity_id: UUID,
+    action: str,
+    actor_type: str = "officer",
+    actor_id: str | None = None,
+    changes: dict | None = None,
+    ip_address: str | None = None,
+) -> AuditLog:
+    """
+    Create an audit log entry.
+
+    Args:
+        session: Async database session.
+        entity_type: Type of entity (e.g. "report").
+        entity_id: ID of the entity.
+        action: Action performed (e.g. "status_change", "note_added").
+        actor_type: Type of actor (e.g. "officer", "system").
+        actor_id: ID of the actor.
+        changes: Dict describing what changed.
+        ip_address: Client IP address.
+
+    Returns:
+        Created AuditLog instance.
+    """
+    log = AuditLog(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        changes=changes or {},
+    )
+    session.add(log)
+    await session.flush()
+    return log
+
+
+async def get_audit_logs_for_entity(
+    session: AsyncSession,
+    entity_type: str,
+    entity_id: UUID,
+) -> list[AuditLog]:
+    """Get all audit log entries for an entity, ordered chronologically."""
+    result = await session.execute(
+        select(AuditLog)
+        .where(
+            and_(
+                AuditLog.entity_type == entity_type,
+                AuditLog.entity_id == entity_id,
+            )
+        )
+        .order_by(AuditLog.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def get_notifications_for_report(
+    session: AsyncSession,
+    report_id: UUID,
+) -> list[Notification]:
+    """Get all notifications associated with a report."""
+    result = await session.execute(
+        select(Notification)
+        .where(Notification.report_id == report_id)
+        .order_by(desc(Notification.sent_at))
+    )
+    return list(result.scalars().all())

@@ -49,6 +49,8 @@ class ReportUpdate(CamelCaseModel):
 
     status: ReportStatus | None = None
     officer_id: UUID | None = None
+    investigation_notes: str | None = None
+    outcome: str | None = None
     symptoms: list[str] | None = None
     suspected_disease: DiseaseType | None = None
     location_normalized: str | None = None
@@ -84,6 +86,47 @@ class OfficerSummary(CamelCaseModel):
     region: str | None
 
 
+class InvestigationNote(CamelCaseModel):
+    """A single investigation note with metadata."""
+
+    content: str
+    officer_id: UUID
+    officer_name: str
+    created_at: datetime
+
+
+class NotificationSummary(CamelCaseModel):
+    """Notification summary for report detail view."""
+
+    id: UUID
+    urgency: UrgencyLevel
+    title: str
+    sent_at: datetime
+    read_at: datetime | None
+
+
+class LinkedReportItem(IDMixin):
+    """A report linked to the current report."""
+
+    symptoms: list[str]
+    suspected_disease: DiseaseType
+    cases_count: int
+    location_text: str | None
+    created_at: datetime
+    link_type: str
+    confidence: float
+
+
+class TimelineEvent(CamelCaseModel):
+    """A single event in a report's timeline."""
+
+    event_type: str  # created, status_change, note_added, notification_sent, case_linked
+    timestamp: datetime
+    description: str
+    actor: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
 class ReportResponse(IDMixin, TimestampMixin):
     """Full report response with all fields."""
 
@@ -105,10 +148,21 @@ class ReportResponse(IDMixin, TimestampMixin):
     confidence_score: float | None
     source: str
     resolved_at: datetime | None
+    outcome: str | None = None
 
     # Related entities (optional)
     reporter: ReporterSummary | None = None
     officer: OfficerSummary | None = None
+
+
+class ReportDetailResponse(ReportResponse):
+    """Extended report response with full detail for single-report view."""
+
+    investigation_notes: list[InvestigationNote] = Field(default_factory=list)
+    linked_reports: list[LinkedReportItem] = Field(default_factory=list)
+    notifications: list[NotificationSummary] = Field(default_factory=list)
+    raw_conversation: list | dict = Field(default_factory=list)
+    extracted_entities: dict = Field(default_factory=dict)
 
 
 class ReportListItem(IDMixin):
