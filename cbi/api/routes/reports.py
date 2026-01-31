@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from cbi.api.deps import CurrentOfficer, DB
+from cbi.api.deps import CurrentOfficer, DB, RedisClient
 from cbi.api.schemas import (
     MessageResponse,
     ReportDetailResponse,
@@ -260,6 +260,7 @@ async def update_report(
     update: ReportUpdate,
     db: DB,
     officer: CurrentOfficer,
+    redis: RedisClient,
 ) -> ReportResponse:
     """
     Update a report.
@@ -269,6 +270,7 @@ async def update_report(
 
     Status changes to 'resolved' automatically set resolved_at.
     All changes are logged in audit_logs.
+    Publishes a real-time update to connected WebSocket clients.
     """
     report = await get_report_by_id(db, report_id)
     if report is None:
@@ -337,6 +339,25 @@ async def update_report(
 
     await db.commit()
 
+    # Publish real-time update
+    update_type = "status_change" if "status" in changes else "updated"
+    try:
+        from cbi.services.realtime import RealtimeService
+
+        realtime = RealtimeService(redis)
+        await realtime.publish_report_update(
+            report_id,
+            update_type,
+            data={
+                "fields": list(changes.keys()),
+                "status": report.status.value if hasattr(report.status, "value") else str(report.status),
+                "urgency": report.urgency.value if hasattr(report.urgency, "value") else str(report.urgency),
+                "officer_id": str(officer.id),
+            },
+        )
+    except Exception as e:
+        logger.warning("Failed to publish report update", error=str(e))
+
     logger.info(
         "Report updated",
         report_id=str(report_id),
@@ -353,12 +374,14 @@ async def add_report_note(
     note: ReportNoteCreate,
     db: DB,
     officer: CurrentOfficer,
+    redis: RedisClient,
 ) -> MessageResponse:
     """
     Add an investigation note to a report.
 
     Notes are stored as a JSONB array with timestamps and author info.
     Each addition is logged in audit_logs.
+    Publishes a real-time update to connected WebSocket clients.
     """
     report = await get_report_by_id(db, report_id)
     if report is None:
@@ -391,6 +414,19 @@ async def add_report_note(
     )
 
     await db.commit()
+
+    # Publish real-time update
+    try:
+        from cbi.services.realtime import RealtimeService
+
+        realtime = RealtimeService(redis)
+        await realtime.publish_report_update(
+            report_id,
+            "note_added",
+            data={"officer_id": str(officer.id)},
+        )
+    except Exception as e:
+        logger.warning("Failed to publish note update", error=str(e))
 
     logger.info(
         "Note added to report",

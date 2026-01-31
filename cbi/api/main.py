@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
-from cbi.api.routes import analytics, auth, notifications, reports, webhook, webhooks
+from cbi.api.routes import analytics, auth, notifications, reports, webhook, webhooks, websocket
 from cbi.config import configure_logging, get_logger, get_settings
 from cbi.db import close_db, init_db
 from cbi.db import health_check as db_health_check
@@ -101,6 +101,7 @@ app.include_router(
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(webhook.router, prefix="/webhook", tags=["Webhooks (legacy)"])
 app.include_router(webhooks.router, tags=["Webhooks"])
+app.include_router(websocket.router, tags=["WebSocket"])
 
 
 @app.get("/health")

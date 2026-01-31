@@ -439,22 +439,35 @@ async def send_notification(notification_id: UUID) -> None:
 
 async def publish_to_dashboard(notification: dict) -> None:
     """
-    Publish a notification to the Redis pub/sub channel for real-time dashboard display.
+    Publish a notification to Redis pub/sub channels for real-time dashboard display.
 
-    The dashboard frontend listens on the 'notifications:dashboard' channel
-    via Socket.io / WebSocket bridge.
+    Publishes to:
+    - The legacy notifications:dashboard channel
+    - Officer-specific channels via RealtimeService (for WebSocket delivery)
+    - Broadcast channel if no specific officer is targeted
 
     Args:
         notification: Full notification data dict including id, urgency,
                       title, body, and bilingual content
     """
     from cbi.services.message_queue import get_redis_client
+    from cbi.services.realtime import RealtimeService
 
     try:
         client = await get_redis_client()
         payload = json.dumps(notification, ensure_ascii=False, default=str)
 
+        # Publish to legacy dashboard channel
         subscribers = await client.publish(DASHBOARD_CHANNEL, payload)
+
+        # Also publish via RealtimeService for WebSocket delivery
+        realtime = RealtimeService(client)
+        officer_id = notification.get("officer_id")
+        if officer_id:
+            await realtime.publish_notification(notification, [officer_id])
+        else:
+            # No specific officer targeted; broadcast to all
+            await realtime.broadcast(notification)
 
         logger.debug(
             "Published notification to dashboard",
