@@ -8,7 +8,7 @@ class APIClient {
       "Content-Type": "application/json",
     };
 
-    const token = useAuthStore.getState().tokens?.accessToken;
+    const token = useAuthStore.getState().accessToken;
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
