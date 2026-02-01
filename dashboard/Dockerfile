@@ -108,6 +108,9 @@ RUN addgroup --system --gid 1001 nodejs \
 # Change ownership of /app directory to nextjs user
 RUN chown -R nextjs:nodejs /app
 
+# Pre-create .next directory so the anonymous volume inherits correct ownership
+RUN mkdir -p /app/.next && chown nextjs:nodejs /app/.next
+
 # Switch to non-root user before installing dependencies
 USER nextjs
 

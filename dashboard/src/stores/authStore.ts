@@ -22,7 +22,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: async (email: string, password: string) => {
-        const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
@@ -38,15 +38,15 @@ export const useAuthStore = create<AuthState>()(
         const data = await res.json();
         const accessToken: string = data.accessToken;
 
-        const meRes = await fetch(`${API_URL}/api/v1/auth/me`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        // Map backend officer shape to dashboard Officer type
+        const raw = data.officer;
+        const officer: Officer = {
+          id: raw.id,
+          email: raw.email,
+          fullName: raw.name,
+          assignedRegions: raw.region ? [raw.region] : [],
+        };
 
-        if (!meRes.ok) {
-          throw new Error("Failed to fetch officer profile");
-        }
-
-        const officer: Officer = await meRes.json();
         set({ officer, accessToken, isAuthenticated: true });
       },
 
