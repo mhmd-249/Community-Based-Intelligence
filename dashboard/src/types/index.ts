@@ -1,65 +1,84 @@
-// Report types matching backend schema
+// Report types
 export type ReportStatus = "open" | "investigating" | "resolved" | "false_alarm";
-export type SuspectedDisease = "cholera" | "dengue" | "malaria" | "unknown";
 export type UrgencyLevel = "critical" | "high" | "medium" | "low";
-export type AlertType = "suspected_outbreak" | "cluster" | "single_case" | "rumor";
 
 export interface Report {
   id: string;
-  reporterId: string;
-  officerId: string | null;
   conversationId: string;
+  platform: "telegram" | "whatsapp";
   status: ReportStatus;
-  symptoms: string[];
-  suspectedDisease: SuspectedDisease;
-  locationText: string;
-  locationNormalized: string;
-  locationPoint: { lat: number; lng: number } | null;
-  onsetText: string;
-  onsetDate: string | null;
-  casesCount: number;
-  deathsCount: number;
-  urgency: UrgencyLevel;
-  alertType: AlertType;
-  dataCompleteness: number;
-  rawConversation: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+
+  // MVS Data
+  symptoms: string[];
+  suspectedDisease: "cholera" | "dengue" | "malaria" | "unknown" | null;
+  locationText: string | null;
+  locationNormalized: string | null;
+  locationCoords: { lat: number; lng: number } | null;
+  onsetText: string | null;
+  onsetDate: string | null;
+  casesCount: number | null;
+  deathsCount: number | null;
+
+  // Classification
+  dataCompleteness: number;
+  urgency: UrgencyLevel;
+  alertType: string | null;
+
+  // Investigation
+  assignedOfficerId: string | null;
+  investigationNotes: string | null;
+  outcome: string | null;
+
+  // Conversation
+  rawConversation: {
+    messages: Array<{
+      role: "user" | "assistant";
+      content: string;
+      timestamp: string;
+    }>;
+  } | null;
 }
 
 export interface Officer {
   id: string;
   email: string;
-  name: string;
-  region: string;
-  role: string;
+  fullName: string;
+  assignedRegions: string[];
+}
+
+export interface ReportListResponse {
+  reports: Report[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AnalyticsSummary {
+  criticalAlerts: number;
+  criticalTrend: number;
+  activeCases: number;
+  casesTrend: number;
+  affectedRegions: number;
+  reportsToday: number;
+  trendData: Array<{
+    date: string;
+    cholera: number;
+    dengue: number;
+    malaria: number;
+  }>;
+  diseaseData: Array<{ name: string; value: number }>;
 }
 
 export interface Notification {
   id: string;
-  reportId: string;
-  officerId: string;
-  urgency: UrgencyLevel;
   title: string;
   body: string;
-  channels: string[];
-  sentAt: string;
-  readAt: string | null;
-}
-
-export interface DashboardStats {
-  totalReports: number;
-  activeOutbreaks: number;
-  criticalAlerts: number;
-  resolvedToday: number;
-}
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
+  urgency: UrgencyLevel;
+  reportId?: string;
+  timestamp: Date;
+  read: boolean;
 }
 
 export interface AuthTokens {
