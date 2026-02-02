@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { useRealtime } from "@/hooks/useRealtime";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -33,6 +34,9 @@ export default function DashboardLayout({
       router.replace("/login");
     }
   }, [hydrated, isAuthenticated, router]);
+
+  // Connect to WebSocket for real-time updates
+  useRealtime();
 
   if (!hydrated) {
     return (

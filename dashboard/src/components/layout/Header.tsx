@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Menu, Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useNotificationStore } from "@/stores/notificationStore";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MobileNav } from "./MobileNav";
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   return (
     <>
@@ -38,15 +37,7 @@ export function Header() {
         </div>
 
         {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-          <span className="sr-only">Notifications</span>
-        </Button>
+        <NotificationBell />
       </header>
 
       <MobileNav open={mobileOpen} onOpenChange={setMobileOpen} />
