@@ -11,6 +11,7 @@ from typing import Literal
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
+from cbi.agents.analyst import analyst_node
 from cbi.agents.reporter import reporter_node
 from cbi.agents.state import (
     ConversationMode,
@@ -23,40 +24,6 @@ from cbi.services.messaging.base import OutgoingMessage
 from cbi.services.messaging.factory import get_gateway
 
 logger = get_logger(__name__)
-
-
-# =============================================================================
-# Placeholder Agent Nodes (to be implemented in future phases)
-# =============================================================================
-
-
-async def analyst_node(state: ConversationState) -> ConversationState:
-    """
-    Analyst Agent node - generates insights for critical/high urgency cases.
-
-    TODO: Implement in Phase 5
-    - Query related reports
-    - Generate situation summary
-    - Create visualizations
-    - Recommend actions
-    """
-    conversation_id = state.get("conversation_id", "unknown")
-
-    logger.info(
-        "Analyst agent processing critical case",
-        conversation_id=conversation_id,
-    )
-
-    # Placeholder - just pass through for now
-    new_state = dict(state)
-    new_state["updated_at"] = datetime.utcnow().isoformat()
-
-    logger.info(
-        "Analyst agent completed (placeholder)",
-        conversation_id=conversation_id,
-    )
-
-    return ConversationState(**new_state)
 
 
 # =============================================================================

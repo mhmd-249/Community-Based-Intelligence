@@ -7,8 +7,20 @@ Contains the LangGraph-based conversation agents:
 - Analyst Agent: Natural language queries, visualizations
 """
 
-from cbi.agents.graph import (
+from cbi.agents.analyst import (
+    ALLOWED_COLUMNS,
+    ALLOWED_TABLES,
     analyst_node,
+    execute_query,
+    format_results,
+    generate_sql,
+    get_disease_summary,
+    get_geographic_hotspots,
+    parse_query_intent,
+    process_query,
+    validate_sql_query,
+)
+from cbi.agents.graph import (
     create_cbi_graph,
     get_graph,
     process_conversation_turn,
@@ -32,6 +44,8 @@ from cbi.agents.prompts import (
     format_analyst_prompt,
     format_reporter_prompt,
     format_surveillance_prompt,
+    validate_analyst_query_response,
+    validate_analyst_summary_response,
     validate_reporter_response,
     validate_surveillance_response,
 )
@@ -94,6 +108,8 @@ __all__ = [
     # Validators
     "validate_reporter_response",
     "validate_surveillance_response",
+    "validate_analyst_query_response",
+    "validate_analyst_summary_response",
     # Reporter agent
     "reporter_node",
     "process_message",
@@ -115,4 +131,15 @@ __all__ = [
     # Routing functions
     "route_after_reporter",
     "route_after_surveillance",
+    # Analyst agent
+    "process_query",
+    "parse_query_intent",
+    "generate_sql",
+    "execute_query",
+    "format_results",
+    "validate_sql_query",
+    "get_disease_summary",
+    "get_geographic_hotspots",
+    "ALLOWED_TABLES",
+    "ALLOWED_COLUMNS",
 ]

@@ -528,3 +528,76 @@ def validate_surveillance_response(response: dict[str, Any]) -> tuple[bool, list
         errors.append(f"Invalid alert_type: {response.get('alert_type')}")
 
     return len(errors) == 0, errors
+
+
+def validate_analyst_query_response(response: dict[str, Any]) -> tuple[bool, list[str]]:
+    """
+    Validate that an analyst query response has required fields.
+
+    Args:
+        response: Parsed JSON response from analyst agent for data queries
+
+    Returns:
+        Tuple of (is_valid, list of error messages)
+    """
+    errors = []
+
+    # For query intent parsing
+    if "query_type" in response:
+        valid_query_types = [
+            "case_count",
+            "trend",
+            "comparison",
+            "geographic",
+            "timeline",
+            "summary",
+            "threshold_check",
+        ]
+        if response["query_type"] not in valid_query_types:
+            errors.append(f"Invalid query_type: {response['query_type']}")
+
+    # For SQL generation responses
+    if "sql" in response:
+        sql = response["sql"].upper().strip()
+        if not sql.startswith("SELECT") and not sql.startswith("WITH"):
+            errors.append("SQL must be a SELECT statement")
+
+    # For formatted results
+    if "visualization_type" in response:
+        valid_viz_types = [
+            "bar_chart",
+            "line_chart",
+            "map",
+            "table",
+            "stat_card",
+            "none",
+        ]
+        if response["visualization_type"] not in valid_viz_types:
+            errors.append(f"Invalid visualization_type: {response['visualization_type']}")
+
+    return len(errors) == 0, errors
+
+
+def validate_analyst_summary_response(response: dict[str, Any]) -> tuple[bool, list[str]]:
+    """
+    Validate that an analyst situation summary response has required fields.
+
+    Args:
+        response: Parsed JSON response from analyst agent for situation summaries
+
+    Returns:
+        Tuple of (is_valid, list of error messages)
+    """
+    errors = []
+
+    # Summary is required
+    if "summary" not in response or not response["summary"]:
+        errors.append("Missing required field: summary")
+
+    # Risk assessment should be valid if present
+    if "risk_assessment" in response:
+        valid_risk_levels = ["low", "medium", "high", "critical"]
+        if response["risk_assessment"] not in valid_risk_levels:
+            errors.append(f"Invalid risk_assessment: {response['risk_assessment']}")
+
+    return len(errors) == 0, errors
