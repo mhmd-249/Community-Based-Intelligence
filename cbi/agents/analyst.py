@@ -178,11 +178,27 @@ def validate_sql_query(sql: str) -> tuple[bool, str]:
             return False, f"Potential SQL injection pattern detected: {pattern}"
 
     # Verify tables are in whitelist
+    # First, extract CTE names from WITH clause (they are valid aliases)
+    cte_names: set[str] = set()
+    if sql_upper.startswith("WITH"):
+        # Pattern to match CTE names: WITH name AS (...), name2 AS (...)
+        cte_pattern = r"\bWITH\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\("
+        cte_match = re.search(cte_pattern, sql_upper)
+        if cte_match:
+            cte_names.add(cte_match.group(1).lower())
+        # Also check for additional CTEs after commas
+        additional_ctes = r",\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\("
+        cte_names.update(m.lower() for m in re.findall(additional_ctes, sql_upper))
+
     # Extract table names from FROM and JOIN clauses
     table_pattern = r"\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)"
     tables_found = re.findall(table_pattern, sql_upper)
     for table in tables_found:
-        if table.lower() not in ALLOWED_TABLES:
+        table_lower = table.lower()
+        # Skip CTE names - they're aliases, not actual tables
+        if table_lower in cte_names:
+            continue
+        if table_lower not in ALLOWED_TABLES:
             return False, f"Table not allowed: {table}"
 
     return True, ""
