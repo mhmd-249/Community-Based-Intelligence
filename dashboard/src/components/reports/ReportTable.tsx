@@ -56,8 +56,8 @@ export function ReportTable({ reports, isLoading }: ReportTableProps) {
   }
 
   return (
-    <div className="rounded-lg border bg-white">
-      <Table>
+    <div className="rounded-lg border bg-white overflow-x-auto">
+      <Table className="min-w-[700px]">
         <TableHeader>
           <TableRow>
             <TableHead>Disease</TableHead>

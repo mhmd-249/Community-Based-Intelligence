@@ -32,6 +32,7 @@ export function Header() {
               type="search"
               placeholder="Search reports..."
               className="pl-9 bg-muted/40"
+              aria-label="Search reports"
             />
           </div>
         </div>
