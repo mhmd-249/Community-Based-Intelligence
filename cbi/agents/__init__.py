@@ -13,9 +13,13 @@ from cbi.agents.analyst import (
     analyst_node,
     execute_query,
     format_results,
+    generate_chart_config,
+    generate_situation_summary,
     generate_sql,
+    generate_visualization,
     get_disease_summary,
     get_geographic_hotspots,
+    get_report_situation_summary,
     parse_query_intent,
     process_query,
     validate_sql_query,
@@ -29,12 +33,6 @@ from cbi.agents.graph import (
     route_after_surveillance,
     send_notification_node,
     send_response_node,
-)
-from cbi.agents.surveillance import (
-    THRESHOLDS,
-    calculate_urgency,
-    check_thresholds,
-    surveillance_node,
 )
 from cbi.agents.prompts import (
     ANALYST_SYSTEM_PROMPT,
@@ -72,6 +70,12 @@ from cbi.agents.state import (
     set_handoff,
     transition_mode,
     update_extracted_data,
+)
+from cbi.agents.surveillance import (
+    THRESHOLDS,
+    calculate_urgency,
+    check_thresholds,
+    surveillance_node,
 )
 
 __all__ = [
@@ -131,7 +135,7 @@ __all__ = [
     # Routing functions
     "route_after_reporter",
     "route_after_surveillance",
-    # Analyst agent
+    # Analyst agent - Query processing
     "process_query",
     "parse_query_intent",
     "generate_sql",
@@ -142,4 +146,9 @@ __all__ = [
     "get_geographic_hotspots",
     "ALLOWED_TABLES",
     "ALLOWED_COLUMNS",
+    # Analyst agent - Visualization
+    "generate_visualization",
+    "generate_chart_config",
+    "generate_situation_summary",
+    "get_report_situation_summary",
 ]
