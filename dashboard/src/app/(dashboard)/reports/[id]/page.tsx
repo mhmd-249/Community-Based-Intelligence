@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,10 @@ const STATUS_STYLES: Record<string, string> = {
 export default function ReportDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { data: report, isLoading } = useReport(params.id);
+  const { id } = use(params);
+  const { data: report, isLoading } = useReport(id);
   const updateReport = useUpdateReport();
   const [notes, setNotes] = useState("");
 
@@ -65,7 +66,7 @@ export default function ReportDetailPage({
   }
 
   function handleStatusChange(status: string) {
-    updateReport.mutate({ id: params.id, data: { status: status as ReportStatus } });
+    updateReport.mutate({ id, data: { status: status as ReportStatus } });
   }
 
   // Normalize conversation messages from the backend
