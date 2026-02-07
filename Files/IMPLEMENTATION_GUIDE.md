@@ -1479,8 +1479,6 @@ Implement visualization code generation in agents/analyst.py:
 ---
 
 
-done
-
 ## Phase 8: Testing (Weeks 11-12)
 
 ### 8.1 Unit Tests
