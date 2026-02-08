@@ -177,8 +177,6 @@ async def get_reports_near_location(
     limit: int = 50,
 ) -> list[Report]:
     """Get reports within a radius of a location."""
-    from geoalchemy2 import func as geo_func
-
     since = datetime.utcnow() - timedelta(days=days)
     point = f"SRID=4326;POINT({longitude} {latitude})"
 
@@ -188,9 +186,9 @@ async def get_reports_near_location(
             and_(
                 Report.location_point.isnot(None),
                 Report.created_at >= since,
-                geo_func.ST_DWithin(
+                func.ST_DWithin(
                     Report.location_point,
-                    geo_func.ST_GeogFromText(point),
+                    func.ST_GeogFromText(point),
                     radius_km * 1000,  # Convert km to meters
                 ),
             )
@@ -554,15 +552,13 @@ async def find_related_cases(
 
     # Geographic filtering
     if location_coords is not None:
-        from geoalchemy2 import func as geo_func
-
         lat, lon = location_coords
         point = f"SRID=4326;POINT({lon} {lat})"
         conditions.append(Report.location_point.isnot(None))
         conditions.append(
-            geo_func.ST_DWithin(
+            func.ST_DWithin(
                 Report.location_point,
-                geo_func.ST_GeogFromText(point),
+                func.ST_GeogFromText(point),
                 radius_km * 1000,
             )
         )
@@ -652,14 +648,12 @@ async def get_case_count_for_area(
     ]
 
     if location_lat is not None and location_lon is not None:
-        from geoalchemy2 import func as geo_func
-
         point = f"SRID=4326;POINT({location_lon} {location_lat})"
         conditions.append(Report.location_point.isnot(None))
         conditions.append(
-            geo_func.ST_DWithin(
+            func.ST_DWithin(
                 Report.location_point,
-                geo_func.ST_GeogFromText(point),
+                func.ST_GeogFromText(point),
                 radius_km * 1000,
             )
         )
@@ -793,9 +787,7 @@ async def create_report(
     """
     location_point = None
     if location_point_wkt:
-        from geoalchemy2 import func as geo_func
-
-        location_point = geo_func.ST_GeogFromText(location_point_wkt)
+        location_point = func.ST_GeogFromText(location_point_wkt)
 
     report = Report(
         reporter_id=reporter_id,
