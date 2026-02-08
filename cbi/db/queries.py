@@ -8,7 +8,8 @@ All queries use async SQLAlchemy patterns.
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy import and_, cast, desc, func, or_, select
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY, array as pg_array
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -283,6 +284,93 @@ async def mark_notification_read(
     return False
 
 
+async def create_notification(
+    session: AsyncSession,
+    *,
+    report_id: UUID | None = None,
+    officer_id: UUID | None = None,
+    urgency: UrgencyLevel,
+    title: str,
+    body: str,
+    channels: list[str] | None = None,
+    metadata: dict | None = None,
+) -> UUID:
+    """
+    Create a notification for a health officer.
+
+    Args:
+        session: Async database session
+        report_id: Associated report ID (optional)
+        officer_id: Target officer ID (optional, None = all officers)
+        urgency: Urgency level
+        title: Notification title
+        body: Notification body text
+        channels: Delivery channels (default: ["dashboard"])
+        metadata: Additional metadata
+
+    Returns:
+        UUID of the created notification
+    """
+    notification = Notification(
+        report_id=report_id,
+        officer_id=officer_id,
+        urgency=urgency,
+        title=title,
+        body=body,
+        channels=channels or ["dashboard"],
+        metadata_=metadata or {},
+    )
+    session.add(notification)
+    await session.flush()
+    return notification.id
+
+
+async def create_notifications_for_all_officers(
+    session: AsyncSession,
+    *,
+    report_id: UUID | None = None,
+    urgency: UrgencyLevel,
+    title: str,
+    body: str,
+    metadata: dict | None = None,
+) -> list[UUID]:
+    """
+    Create notifications for all active officers.
+
+    Args:
+        session: Async database session
+        report_id: Associated report ID
+        urgency: Urgency level
+        title: Notification title
+        body: Notification body text
+        metadata: Additional metadata
+
+    Returns:
+        List of created notification UUIDs
+    """
+    result = await session.execute(
+        select(Officer).where(Officer.is_active.is_(True))
+    )
+    officers = list(result.scalars().all())
+
+    notification_ids = []
+    for officer in officers:
+        notification = Notification(
+            report_id=report_id,
+            officer_id=officer.id,
+            urgency=urgency,
+            title=title,
+            body=body,
+            channels=["dashboard"],
+            metadata_=metadata or {},
+        )
+        session.add(notification)
+        await session.flush()
+        notification_ids.append(notification.id)
+
+    return notification_ids
+
+
 # =============================================================================
 # Report Link Queries
 # =============================================================================
@@ -486,9 +574,12 @@ async def find_related_cases(
             )
         )
 
-    # Symptom overlap filtering (at least one shared symptom)
+    # Symptom overlap filtering (at least one shared symptom via && operator)
     if symptoms:
-        conditions.append(Report.symptoms.overlap(symptoms))
+        from sqlalchemy import Text
+        conditions.append(
+            Report.symptoms.op("&&")(cast(pg_array(symptoms), PG_ARRAY(Text)))
+        )
 
     result = await session.execute(
         select(Report)

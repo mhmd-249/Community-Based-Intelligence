@@ -120,29 +120,55 @@ async def send_notification_node(state: ConversationState) -> ConversationState:
         suspected_disease=suspected_disease,
     )
 
-    # TODO: Implement in Phase 6
-    # - Create notification in database
-    # - Publish to Redis pub/sub for real-time dashboard updates
-    # - Send push notifications for critical/high urgency
-
-    # For now, just log the notification details
     symptoms = extracted_data.get("symptoms", [])
     location = extracted_data.get("location_text", "Unknown location")
     cases = extracted_data.get("cases_count", 1)
+    deaths = extracted_data.get("deaths_count", 0)
 
     notification_title = f"[{urgency.upper()}] {suspected_disease.title()} Report"
     notification_body = (
         f"Location: {location}\n"
         f"Symptoms: {', '.join(symptoms) if symptoms else 'Not specified'}\n"
-        f"Cases: {cases}"
+        f"Cases: {cases}\n"
+        f"Deaths: {deaths or 0}"
     )
 
-    logger.info(
-        "Notification created (placeholder)",
-        conversation_id=conversation_id,
-        title=notification_title,
-        body=notification_body[:100],
-    )
+    try:
+        from cbi.db.models import UrgencyLevel
+        from cbi.db.queries import create_notifications_for_all_officers
+        from cbi.db.session import get_session
+
+        try:
+            urgency_enum = UrgencyLevel(urgency)
+        except ValueError:
+            urgency_enum = UrgencyLevel.medium
+
+        async with get_session() as session:
+            notification_ids = await create_notifications_for_all_officers(
+                session,
+                urgency=urgency_enum,
+                title=notification_title,
+                body=notification_body,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "alert_type": alert_type,
+                    "suspected_disease": suspected_disease,
+                },
+            )
+
+        logger.info(
+            "Notifications created in database",
+            conversation_id=conversation_id,
+            title=notification_title,
+            notification_count=len(notification_ids),
+        )
+
+    except Exception as e:
+        logger.error(
+            "Failed to create notifications in database",
+            conversation_id=conversation_id,
+            error=str(e),
+        )
 
     new_state = dict(state)
     new_state["updated_at"] = datetime.utcnow().isoformat()
@@ -157,15 +183,16 @@ async def send_notification_node(state: ConversationState) -> ConversationState:
 
 def route_after_reporter(
     state: ConversationState,
-) -> Literal["surveillance", "send_response", "__end__"]:
+) -> Literal["send_response", "__end__"]:
     """
     Determine the next node after the reporter agent.
 
     Routing logic:
     - If error occurred -> END
-    - If conversation complete and handoff to surveillance -> surveillance
-    - If there's a pending response -> send_response
+    - If there's a pending response -> send_response (always send response first)
     - Otherwise -> END
+
+    After send_response, route_after_send_response handles handoff to surveillance.
 
     Args:
         state: Current conversation state
@@ -175,7 +202,6 @@ def route_after_reporter(
     """
     current_mode = state.get("current_mode")
     error = state.get("error")
-    handoff_to = state.get("handoff_to")
     pending_response = state.get("pending_response")
 
     # Error state - end the workflow
@@ -187,18 +213,7 @@ def route_after_reporter(
         )
         return "__end__"
 
-    # Conversation complete - handoff to surveillance
-    if (
-        current_mode == ConversationMode.complete.value
-        and handoff_to == HandoffTarget.surveillance.value
-    ):
-        logger.debug(
-            "Routing to surveillance",
-            conversation_id=state.get("conversation_id"),
-        )
-        return "surveillance"
-
-    # Has pending response - send it
+    # Always send response to user first (then route to surveillance if needed)
     if pending_response:
         logger.debug(
             "Routing to send_response",
@@ -211,6 +226,37 @@ def route_after_reporter(
         "Routing to END (default)",
         conversation_id=state.get("conversation_id"),
     )
+    return "__end__"
+
+
+def route_after_send_response(
+    state: ConversationState,
+) -> Literal["surveillance", "__end__"]:
+    """
+    Determine the next node after sending a response to the user.
+
+    If the conversation is complete and needs surveillance handoff,
+    route to surveillance. Otherwise, end.
+
+    Args:
+        state: Current conversation state
+
+    Returns:
+        Name of the next node or END
+    """
+    current_mode = state.get("current_mode")
+    handoff_to = state.get("handoff_to")
+
+    if (
+        current_mode == ConversationMode.complete.value
+        and handoff_to == HandoffTarget.surveillance.value
+    ):
+        logger.debug(
+            "Routing to surveillance after sending response",
+            conversation_id=state.get("conversation_id"),
+        )
+        return "surveillance"
+
     return "__end__"
 
 
@@ -302,14 +348,21 @@ def create_cbi_graph(checkpointer: MemorySaver | None = None) -> StateGraph:
         "reporter",
         route_after_reporter,
         {
-            "surveillance": "surveillance",
             "send_response": "send_response",
             "__end__": END,
         },
     )
 
-    # Add edge: send_response -> END
-    workflow.add_edge("send_response", END)
+    # Add conditional edges from send_response
+    # Routes to surveillance if conversation is complete, otherwise END
+    workflow.add_conditional_edges(
+        "send_response",
+        route_after_send_response,
+        {
+            "surveillance": "surveillance",
+            "__end__": END,
+        },
+    )
 
     # Add conditional edges from surveillance
     workflow.add_conditional_edges(
