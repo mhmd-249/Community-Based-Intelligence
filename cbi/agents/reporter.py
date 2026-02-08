@@ -180,11 +180,21 @@ def extract_data_from_response(
     if not extracted:
         return current_data
 
+    # Valid disease types from the DiseaseType enum
+    valid_diseases = {"cholera", "dengue", "malaria", "measles", "meningitis", "unknown"}
+
     # Only update fields that have non-null, non-empty values
     updates = {}
     for key, value in extracted.items():
         if value is not None:
-            if isinstance(value, list) and len(value) > 0:
+            # Validate suspected_disease against enum values
+            if key == "suspected_disease":
+                if isinstance(value, str) and value.lower() in valid_diseases:
+                    updates[key] = value.lower()
+                else:
+                    # Invalid disease type - default to "unknown"
+                    updates[key] = "unknown"
+            elif isinstance(value, list) and len(value) > 0:
                 # Merge lists (e.g., symptoms)
                 existing = current_data.get(key, [])
                 if isinstance(existing, list):
