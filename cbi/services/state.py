@@ -192,14 +192,25 @@ class StateService:
                 # Try to load existing state
                 state = await self.get_state(existing_conversation_id)
                 if state is not None:
-                    # Extend session TTL on access
-                    await self.redis.expire(session_key, self._session_ttl)
-                    logger.debug(
-                        "Resumed existing conversation",
-                        conversation_id=existing_conversation_id,
-                        platform=platform,
-                    )
-                    return state, False
+                    # Check if conversation is complete or in error state
+                    current_mode = state.get("current_mode")
+                    if current_mode in ("complete", "error"):
+                        logger.info(
+                            "Existing conversation is finished, starting new one",
+                            old_conversation_id=existing_conversation_id,
+                            old_mode=current_mode,
+                            platform=platform,
+                        )
+                        # Fall through to create a new conversation
+                    else:
+                        # Extend session TTL on access
+                        await self.redis.expire(session_key, self._session_ttl)
+                        logger.debug(
+                            "Resumed existing conversation",
+                            conversation_id=existing_conversation_id,
+                            platform=platform,
+                        )
+                        return state, False
 
             # Create new conversation
             conversation_id = self._generate_conversation_id()

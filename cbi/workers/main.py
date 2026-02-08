@@ -19,6 +19,7 @@ from cbi.agents.state import (
     add_message_to_state,
 )
 from cbi.config import configure_logging, get_logger, get_settings
+from cbi.db import close_db, init_db
 from cbi.services.message_queue import (
     acknowledge_message,
     close_redis_client,
@@ -150,6 +151,9 @@ class Worker:
             batch_size=self.batch_size,
         )
 
+        # Initialize database
+        await init_db(pool_size=3, max_overflow=5)
+
         # Initialize state service
         self._state_service = await get_state_service()
 
@@ -170,6 +174,9 @@ class Worker:
 
         # Close Redis connections
         await close_redis_client()
+
+        # Close database connections
+        await close_db()
 
         # Reset graph singleton
         reset_graph()
