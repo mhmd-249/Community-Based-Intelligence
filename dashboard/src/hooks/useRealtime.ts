@@ -19,14 +19,26 @@ function toWsUrl(base: string, token: string): string {
 
 interface WsMessage {
   type: string;
-  // new_alert fields
+  // Nested data from RealtimeService wrapper
+  data?: {
+    type?: string;
+    id?: string;
+    title?: string;
+    body?: string;
+    urgency?: UrgencyLevel;
+    reportId?: string;
+    report_id?: string;
+    timestamp?: string;
+    update_type?: string;
+    conversation_id?: string;
+  };
+  // Top-level fields (for flat messages)
   id?: string;
   title?: string;
   body?: string;
   urgency?: UrgencyLevel;
   reportId?: string;
   timestamp?: string;
-  // report_updated fields
   report_id?: string;
 }
 
@@ -56,20 +68,41 @@ export function useRealtime(): void {
 
       ws.onmessage = (event) => {
         try {
-          const data: WsMessage = JSON.parse(event.data);
+          const msg: WsMessage = JSON.parse(event.data);
 
-          if (data.type === "new_alert") {
-            addNotification({
-              id: data.id!,
-              title: data.title!,
-              body: data.body!,
-              urgency: data.urgency!,
-              reportId: data.reportId ?? data.report_id,
-              timestamp: new Date(data.timestamp!),
-            });
-            queryClient.invalidateQueries({ queryKey: ["reports"] });
-          } else if (data.type === "report_updated") {
-            const reportId = data.reportId ?? data.report_id;
+          // RealtimeService wraps payloads: {"type": "broadcast"|"notification", "data": {...}}
+          // Extract the inner payload for notification/broadcast types
+          const inner = msg.data;
+          const msgType = inner?.type ?? msg.type;
+
+          if (
+            msgType === "new_alert" ||
+            msg.type === "notification" ||
+            msg.type === "broadcast"
+          ) {
+            const notif = inner ?? msg;
+            if (notif.title && notif.body) {
+              addNotification({
+                id: notif.id ?? crypto.randomUUID(),
+                title: notif.title,
+                body: notif.body,
+                urgency: notif.urgency ?? "medium",
+                reportId: notif.reportId ?? notif.report_id,
+                timestamp: new Date(
+                  notif.timestamp ?? msg.timestamp ?? Date.now()
+                ),
+              });
+              queryClient.invalidateQueries({ queryKey: ["reports"] });
+              queryClient.invalidateQueries({
+                queryKey: ["analytics", "summary"],
+              });
+            }
+          } else if (
+            msgType === "report_updated" ||
+            msg.type === "report_update"
+          ) {
+            const reportId =
+              inner?.report_id ?? msg.reportId ?? msg.report_id;
             if (reportId) {
               queryClient.invalidateQueries({
                 queryKey: ["reports", reportId],

@@ -163,6 +163,34 @@ async def send_notification_node(state: ConversationState) -> ConversationState:
             notification_count=len(notification_ids),
         )
 
+        # Publish to Redis for real-time WebSocket delivery
+        try:
+            from cbi.services.message_queue import get_redis_client
+            from cbi.services.realtime import RealtimeService
+
+            redis_client = await get_redis_client()
+            realtime = RealtimeService(redis_client)
+            await realtime.broadcast({
+                "type": "new_alert",
+                "id": str(notification_ids[0]) if notification_ids else "",
+                "title": notification_title,
+                "body": notification_body,
+                "urgency": urgency,
+                "report_id": str(state.get("report_id", "")),
+                "conversation_id": conversation_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+            logger.info(
+                "Notification broadcast to WebSocket clients",
+                conversation_id=conversation_id,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to broadcast notification via WebSocket (non-fatal)",
+                conversation_id=conversation_id,
+                error=str(e),
+            )
+
     except Exception as e:
         logger.error(
             "Failed to create notifications in database",
