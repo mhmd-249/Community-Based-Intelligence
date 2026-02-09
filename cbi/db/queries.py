@@ -13,6 +13,7 @@ from sqlalchemy import and_, cast, desc, func, or_, select
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY, array as pg_array
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from cbi.db.models import (
     AlertType,
@@ -88,8 +89,12 @@ async def get_report_by_id(
     session: AsyncSession,
     report_id: UUID,
 ) -> Report | None:
-    """Get a report by ID."""
-    result = await session.execute(select(Report).where(Report.id == report_id))
+    """Get a report by ID with eagerly loaded relationships."""
+    result = await session.execute(
+        select(Report)
+        .where(Report.id == report_id)
+        .options(selectinload(Report.reporter), selectinload(Report.officer))
+    )
     return result.scalar_one_or_none()
 
 
