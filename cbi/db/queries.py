@@ -6,6 +6,7 @@ All queries use async SQLAlchemy patterns.
 """
 
 from datetime import date, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, cast, desc, func, or_, select
@@ -724,11 +725,13 @@ async def link_reports(
     )
 
     try:
-        session.add(link)
-        await session.flush()
+        async with session.begin_nested():
+            session.add(link)
+            await session.flush()
         return link
     except IntegrityError:
-        await session.rollback()
+        # Savepoint rollback only — does NOT roll back the outer transaction,
+        # so previously flushed objects (e.g. the report) are preserved.
         return None
 
 
@@ -923,6 +926,21 @@ async def create_report_from_state(
         except ValueError:
             pass
 
+    # Ensure messages are JSON-serializable (datetime -> isoformat string)
+    def _make_json_safe(obj: Any) -> Any:
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, date):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {k: _make_json_safe(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_make_json_safe(item) for item in obj]
+        return obj
+
+    safe_messages = _make_json_safe(messages)
+    safe_extracted = _make_json_safe(extracted_data)
+
     report = await create_report(
         session,
         conversation_id=conversation_id,
@@ -942,8 +960,8 @@ async def create_report_from_state(
         alert_type=alert_type,
         data_completeness=classification.get("data_completeness", 0.0),
         confidence_score=classification.get("confidence"),
-        raw_conversation=messages,
-        extracted_entities=extracted_data,
+        raw_conversation=safe_messages,
+        extracted_entities=safe_extracted,
         source=platform,
     )
 

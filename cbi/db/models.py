@@ -244,7 +244,12 @@ class Report(Base):
         default=DiseaseType.unknown,
     )
     reporter_relation: Mapped[ReporterRelation | None] = mapped_column(
-        Enum(ReporterRelation, name="reporter_rel", create_type=False),
+        Enum(
+            ReporterRelation,
+            name="reporter_rel",
+            create_type=False,
+            values_callable=lambda e: [x.value for x in e],
+        ),
         default=None,
     )
     location_text: Mapped[str | None] = mapped_column(Text, default=None)

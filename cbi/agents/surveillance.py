@@ -382,13 +382,13 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
                 link_reports,
             )
 
-            async with get_session() as session:
-                # 3a. Find related cases
-                try:
-                    disease_enum = DiseaseType(disease_str)
-                except ValueError:
-                    disease_enum = DiseaseType.unknown
+            try:
+                disease_enum = DiseaseType(disease_str)
+            except ValueError:
+                disease_enum = DiseaseType.unknown
 
+            # 3a. Query related cases and area stats (read-only)
+            async with get_session() as session:
                 related_cases = await find_related_cases(
                     session,
                     location=location_text,
@@ -409,7 +409,6 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
                     related_count=len(related_cases),
                 )
 
-                # 3b. Get area case count for threshold checking
                 total_area_cases = await get_case_count_for_area(
                     session,
                     disease=disease_enum,
@@ -425,74 +424,98 @@ async def surveillance_node(state: ConversationState) -> ConversationState:
                     )["window_days"],
                 )
 
-                # 3c. Check thresholds (include current report in count)
-                threshold_result = check_thresholds(
-                    disease_str, total_area_cases + 1, deaths
-                )
+            # 3b. Check thresholds (include current report in count)
+            threshold_result = check_thresholds(
+                disease_str, total_area_cases + 1, deaths
+            )
 
-                # 3d. Calculate final urgency
-                final_urgency = calculate_urgency(
-                    parsed, total_area_cases + 1, deaths
-                )
+            # 3c. Calculate final urgency
+            final_urgency = calculate_urgency(
+                parsed, total_area_cases + 1, deaths
+            )
 
-                # Override alert_type if threshold exceeded
-                if threshold_result["exceeded"]:
-                    parsed["alert_type"] = threshold_result["alert_type"]
-                    if threshold_result.get("threshold_detail"):
-                        existing_reasoning = parsed.get("reasoning", "")
-                        parsed["reasoning"] = (
-                            f"{existing_reasoning} | "
-                            f"THRESHOLD: {threshold_result['threshold_detail']}"
-                        )
+            # Override alert_type if threshold exceeded
+            if threshold_result["exceeded"]:
+                parsed["alert_type"] = threshold_result["alert_type"]
+                if threshold_result.get("threshold_detail"):
+                    existing_reasoning = parsed.get("reasoning", "")
+                    parsed["reasoning"] = (
+                        f"{existing_reasoning} | "
+                        f"THRESHOLD: {threshold_result['threshold_detail']}"
+                    )
 
-                parsed["urgency"] = final_urgency
+            parsed["urgency"] = final_urgency
 
-                # 3e. Create the report in the database
-                # Build a state snapshot with classification for create_report_from_state
-                report_state = dict(state)
-                report_state["classification"] = {
-                    **report_state.get("classification", {}),
-                    "suspected_disease": disease_str,
-                    "confidence": parsed.get("confidence", 0.0),
-                    "urgency": final_urgency,
-                    "alert_type": parsed.get("alert_type", "single_case"),
-                }
+            # 3d. Create the report in its own transaction (committed on exit)
+            report_state = dict(state)
+            report_state["classification"] = {
+                **report_state.get("classification", {}),
+                "suspected_disease": disease_str,
+                "confidence": parsed.get("confidence", 0.0),
+                "urgency": final_urgency,
+                "alert_type": parsed.get("alert_type", "single_case"),
+            }
 
+            async with get_session() as session:
                 report_id = await create_report_from_state(
                     session, report_state
                 )
 
-                # 3f. Link related cases
-                for related in related_cases:
-                    link_type = _determine_link_type(
-                        symptoms, location_text, related
-                    )
-                    await link_reports(
-                        session,
-                        report_id,
-                        related["id"],
-                        link_type,
-                        related.get("symptom_overlap_score", 0.7),
-                        metadata={
-                            "auto_linked": True,
-                            "agent": "surveillance",
-                        },
-                    )
+            logger.info(
+                "Report persisted to database",
+                conversation_id=conversation_id,
+                report_id=str(report_id),
+                total_area_cases=total_area_cases,
+                threshold_exceeded=threshold_result["exceeded"],
+            )
 
-                logger.info(
-                    "Report persisted to database",
-                    conversation_id=conversation_id,
-                    report_id=str(report_id),
-                    related_cases_linked=len(related_cases),
-                    total_area_cases=total_area_cases,
-                    threshold_exceeded=threshold_result["exceeded"],
-                )
+            # 3e. Link related cases in a separate transaction
+            # Failures here won't affect the saved report
+            if related_cases:
+                try:
+                    async with get_session() as session:
+                        for related in related_cases:
+                            link_type = _determine_link_type(
+                                symptoms, location_text, related
+                            )
+                            await link_reports(
+                                session,
+                                report_id,
+                                related["id"],
+                                link_type,
+                                related.get("symptom_overlap_score", 0.7),
+                                metadata={
+                                    "auto_linked": True,
+                                    "agent": "surveillance",
+                                },
+                            )
+
+                    logger.info(
+                        "Related cases linked",
+                        conversation_id=conversation_id,
+                        report_id=str(report_id),
+                        related_cases_linked=len(related_cases),
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to link related cases (report still saved)",
+                        conversation_id=conversation_id,
+                        report_id=str(report_id),
+                        error=str(e),
+                    )
 
         except Exception as e:
             logger.error(
-                "Database error in surveillance agent",
+                "Database error in surveillance agent — report NOT saved",
                 conversation_id=conversation_id,
                 error=str(e),
+                error_type=type(e).__name__,
+            )
+            import traceback
+            logger.error(
+                "Database error traceback",
+                conversation_id=conversation_id,
+                traceback=traceback.format_exc(),
             )
             # Don't fail the pipeline - classification still updates state
             # Apply threshold check with what we have
