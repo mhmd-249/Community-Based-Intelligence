@@ -165,13 +165,22 @@ class ReportDetailResponse(ReportResponse):
     extracted_entities: dict = Field(default_factory=dict)
 
 
+class LocationCoords(CamelCaseModel):
+    """Lat/lng coordinates for map display."""
+
+    lat: float
+    lng: float
+
+
 class ReportListItem(IDMixin):
     """Abbreviated report for list views."""
 
     conversation_id: str
     status: ReportStatus
     suspected_disease: DiseaseType
-    location_normalized: str | None
+    location_text: str | None = None
+    location_normalized: str | None = None
+    location_coords: LocationCoords | None = None
     urgency: UrgencyLevel
     alert_type: AlertType
     cases_count: int
@@ -192,5 +201,6 @@ class ReportStatsResponse(CamelCaseModel):
     open: int
     critical: int
     resolved: int
+    affected_regions: int = 0
     by_disease: dict[str, int] = Field(default_factory=dict)
     by_urgency: dict[str, int] = Field(default_factory=dict)

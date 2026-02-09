@@ -9,6 +9,7 @@ interface ReportsStatsResponse {
   open: number;
   critical: number;
   resolved: number;
+  affectedRegions: number;
   byDisease: Record<string, number>;
   byUrgency: Record<string, number>;
 }
@@ -24,7 +25,7 @@ function mapStatsToSummary(stats: ReportsStatsResponse): AnalyticsSummary {
     criticalTrend: 0,
     activeCases: stats.open,
     casesTrend: 0,
-    affectedRegions: 0,
+    affectedRegions: stats.affectedRegions ?? 0,
     reportsToday: stats.total,
     trendData: [],
     diseaseData,

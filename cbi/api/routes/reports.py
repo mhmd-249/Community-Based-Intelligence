@@ -23,6 +23,7 @@ from cbi.api.schemas import (
 from cbi.api.schemas.reports import (
     InvestigationNote,
     LinkedReportItem,
+    LocationCoords,
     NotificationSummary,
     OfficerSummary,
     ReporterSummary,
@@ -43,6 +44,19 @@ from cbi.db.queries import (
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _extract_location_coords(report) -> LocationCoords | None:
+    """Extract lat/lng from a PostGIS location_point if present."""
+    if report.location_point is None:
+        return None
+    try:
+        from geoalchemy2.shape import to_shape
+
+        point = to_shape(report.location_point)
+        return LocationCoords(lat=point.y, lng=point.x)
+    except Exception:
+        return None
 
 
 def _build_report_response(report) -> ReportResponse:
@@ -132,7 +146,9 @@ async def list_reports(
             conversation_id=r.conversation_id,
             status=r.status,
             suspected_disease=r.suspected_disease,
+            location_text=r.location_text,
             location_normalized=r.location_normalized,
+            location_coords=_extract_location_coords(r),
             urgency=r.urgency,
             alert_type=r.alert_type,
             cases_count=r.cases_count,
@@ -176,6 +192,7 @@ async def get_stats(
         open=stats["open"],
         critical=stats["critical"],
         resolved=stats["resolved"],
+        affected_regions=stats.get("affected_regions", 0),
         by_disease=stats["by_disease"],
         by_urgency=stats["by_urgency"],
     )

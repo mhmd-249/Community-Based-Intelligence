@@ -60,6 +60,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Store in app state for access in dependencies
     app.state.redis = redis_client
 
+    # Backfill geocoding for existing reports missing location_point
+    try:
+        from cbi.db.queries import backfill_report_locations
+        from cbi.db.session import get_session
+
+        async with get_session() as session:
+            updated = await backfill_report_locations(session)
+            await session.commit()
+            if updated:
+                logger.info("Backfilled report locations", count=updated)
+    except Exception as e:
+        logger.warning("Location backfill failed (non-fatal)", error=str(e))
+
     yield
 
     # Shutdown

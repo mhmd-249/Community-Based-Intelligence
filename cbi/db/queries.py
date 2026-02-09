@@ -31,6 +31,33 @@ from cbi.db.models import (
 )
 
 
+async def backfill_report_locations(session: AsyncSession) -> int:
+    """Geocode existing reports that have location_text but no location_point."""
+    result = await session.execute(
+        select(Report).where(
+            and_(
+                Report.location_text.isnot(None),
+                Report.location_point.is_(None),
+            )
+        )
+    )
+    reports = list(result.scalars().all())
+    updated = 0
+    for report in reports:
+        coords = _geocode_location(report.location_text)
+        if coords:
+            lat, lon = coords
+            from geoalchemy2.elements import WKTElement
+
+            report.location_point = WKTElement(
+                f"POINT({lon} {lat})", srid=4326
+            )
+            updated += 1
+    if updated:
+        await session.flush()
+    return updated
+
+
 # =============================================================================
 # Reporter Queries
 # =============================================================================
@@ -824,6 +851,65 @@ async def create_report(
     return report
 
 
+# Known Sudanese locations for basic geocoding (name → (lat, lon))
+_SUDAN_LOCATIONS: dict[str, tuple[float, float]] = {
+    # Khartoum State
+    "khartoum": (15.5007, 32.5599),
+    "الخرطوم": (15.5007, 32.5599),
+    "omdurman": (15.6445, 32.4777),
+    "أم درمان": (15.6445, 32.4777),
+    "امدرمان": (15.6445, 32.4777),
+    "bahri": (15.6513, 32.5520),
+    "بحري": (15.6513, 32.5520),
+    "الكلاكلة": (15.4500, 32.5200),
+    "kalaklah": (15.4500, 32.5200),
+    "kalakla": (15.4500, 32.5200),
+    "الحلة": (15.5100, 32.5400),
+    "soba": (15.4300, 32.6200),
+    "سوبا": (15.4300, 32.6200),
+    "shambat": (15.6700, 32.5100),
+    "شمبات": (15.6700, 32.5100),
+    # Other major cities
+    "port sudan": (19.6158, 37.2164),
+    "بورتسودان": (19.6158, 37.2164),
+    "kassala": (15.4517, 36.3998),
+    "كسلا": (15.4517, 36.3998),
+    "gedaref": (14.0333, 35.3833),
+    "القضارف": (14.0333, 35.3833),
+    "wad madani": (14.4000, 33.5167),
+    "ود مدني": (14.4000, 33.5167),
+    "el obeid": (13.1833, 30.2167),
+    "الأبيض": (13.1833, 30.2167),
+    "nyala": (12.0489, 24.8815),
+    "نيالا": (12.0489, 24.8815),
+    "el fasher": (13.6289, 25.3494),
+    "الفاشر": (13.6289, 25.3494),
+    "dongola": (19.1696, 30.4765),
+    "دنقلا": (19.1696, 30.4765),
+    "atbara": (17.7000, 33.9667),
+    "عطبرة": (17.7000, 33.9667),
+    "sennar": (13.5500, 33.6167),
+    "سنار": (13.5500, 33.6167),
+    "kosti": (13.1629, 32.6634),
+    "كوستي": (13.1629, 32.6634),
+}
+
+
+def _geocode_location(location_text: str | None) -> tuple[float, float] | None:
+    """Try to geocode a location text using known Sudanese locations."""
+    if not location_text:
+        return None
+    text_lower = location_text.strip().lower()
+    # Exact match
+    if text_lower in _SUDAN_LOCATIONS:
+        return _SUDAN_LOCATIONS[text_lower]
+    # Substring match (e.g. "منطقة الكلاكلة" contains "الكلاكلة")
+    for name, coords in _SUDAN_LOCATIONS.items():
+        if name in text_lower or text_lower in name:
+            return coords
+    return None
+
+
 async def create_report_from_state(
     session: AsyncSession,
     state: dict,
@@ -885,6 +971,10 @@ async def create_report_from_state(
 
     # Build location WKT if coordinates available
     location_coords = extracted_data.get("location_coords")
+    # If no coords from agent, try geocoding from location_text
+    if not location_coords:
+        location_text_val = extracted_data.get("location_text")
+        location_coords = _geocode_location(location_text_val)
     location_wkt = None
     if location_coords:
         lat, lon = location_coords
@@ -1111,6 +1201,17 @@ async def get_detailed_report_stats(
         for row in urgency_result.all()
     }
 
+    # Affected regions (distinct non-null location_text values)
+    regions_result = await session.execute(
+        select(func.count(func.distinct(Report.location_text))).where(
+            and_(
+                Report.created_at >= since,
+                Report.location_text.isnot(None),
+            )
+        )
+    )
+    affected_regions = regions_result.scalar_one()
+
     return {
         "total": total,
         "open": open_count,
@@ -1118,6 +1219,7 @@ async def get_detailed_report_stats(
         "resolved": total - open_count,
         "by_disease": by_disease,
         "by_urgency": by_urgency,
+        "affected_regions": affected_regions,
     }
 
 
